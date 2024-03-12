@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="style.css">
+    <script src="scripts/synth.js"></script>
+    <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+    <title>HyperLan</title>
+</head>
+
+<body>
+    <div>
+        <p id="synth">
+            <button onclick="initAudio(); this.disabled = true;">Enable</button><br>
+            Master fader <input type="range" id="fader" min="-40" max="0" step="0.1" value="-40"/><span id="fadervalue">-40 db</span><br>
+            Waveform <select id="waveform">
+                <option value="sine">Sine</option>
+                <option value="triangle">Triangle</option>
+                <option value="square">Square</option>
+                <option value="sawtooth">Sawtooth</option>
+            </select><br>
+            Octave <input type="number" value="4" id="octave" min="0" max="10"></input>
+            <button onmousedown="playOsc(get('octave').value*12+21);" onmouseup="stopOsc(get('octave').value*12+21);" onmouseleave="stopOsc(get('octave').value*12+21);">
+                PLAY</button> (or use the lower row of keyboard)<br>
+            <button onmousedown="playNoise();" onmouseup="stopNoise();" onmouseleave="stopNoise();">NOISE</button><br>
+            <canvas id="oscilloscope" width="1400" height="500"></canvas>
+        </p>
+    </div>
+    <table id="FX">
+        <caption>Editable FX chain</caption>
+        <colgroup>
+            <col span="1" style="width: 80%;">
+            <col span="1" style="width: 10%;">
+            <col span="1" style="width: 10%;">
+         </colgroup>
+        <th>Effect</th>
+        <th>Edit</th>
+        <th>Delete</th>
+        <tbody id="fxList"></tbody>
+    </table><br>
+    <div>
+        <p>
+            New FX
+            <select id="fxType">
+                <option value="gain">Gain</option>
+                <option value="biquadfilter">FIR Filter</option>
+                <!-- XXX <option value="filter">IIR Filter</option>-->
+                <option value="distortion">Distortion</option>
+                <option value="convolver">Convolver</option>
+                <option value="delay">Delay</option>
+                <option value="compressor">Compressor</option>
+                <option value="stereopanner">Panner</option>
+                <option value="channelmerger">Channel merger</option>
+                <option value="channelsplitter">Channel splitter</option>
+                <option value="analyser">Frequency analyser/Oscilloscope</option><!-- XXX add loudness analyser? -->
+                <!-- XXX <option value="stereo">Stereo field analyser</option>-->
+            </select>
+            <button onclick="addFx(get('fxType').value);">ADD</button>
+        </p>
+        <p>
+            <span id="fxEditor"></span>
+        </p>
+    </div>
+</body>
