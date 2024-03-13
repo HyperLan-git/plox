@@ -1010,8 +1010,17 @@ async function mainloop() {
     }
 }
 
+//import Drawflow from "drawflow";
+
 window.onload = () => {
     AC = null;
+
+    let id = document.getElementById("drawflow");
+    const editor = new Drawflow(id);
+    editor.reroute = true;
+    const dataToImport = {"drawflow":{"Home":{"data":{"1":{"id":1,"name":"welcome","data":{},"class":"welcome","html":"<div class=\"title-box\">👏 Welcome!!</div>","typenode": false, "inputs":{},"outputs":{},"pos_x":0,"pos_y":0}}}}};
+    editor.start();
+    editor.import(dataToImport);
 
     let fader = get("fader");
     fader.onmousemove = fader.onchange = function() {
