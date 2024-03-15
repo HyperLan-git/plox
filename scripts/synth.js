@@ -10,7 +10,6 @@ let masterFader = new GainNode(AC),
 let noiseOsc = null;
 let noiseBuf = null;
 
-let chain1 = new FXChain(AC);
 let openNode = null;
 
 function get(id) {
@@ -56,8 +55,8 @@ function initAudio() {
     for(let i = 0; i < noiseBuf.length; i++)
         noiseBuf.getChannelData(0)[i] = Math.random() * 2 - 1;
 
-    chain1 = new FXChain(AC);
-    chain1.connect(masterFader);
+    fx = new FXGraph(AC, drawflow);
+    fx.connect(masterFader);
 }
 
 function addFx(type) {
@@ -77,42 +76,26 @@ function addFx(type) {
     let node = FX_TYPES[type];
     if(node === undefined) return;
 
-    const body = get("FX").getElementsByTagName("tbody")[0];
-    const row = body.insertRow();
     const uid = uidGen(10);
-    row.insertCell().innerHTML = type;
-    row.insertCell().innerHTML = "<button onclick='openFx(\"" + uid + "\")'>EDIT</button>";
-    row.insertCell().innerHTML = "<button onclick='deleteFx(\"" + uid + "\");'>DEL</button>";
 
     const obj = new node(AC);
     obj.name = uid;
+    obj.type = type;
     if(type in FX_DRAW) obj.draw = FX_DRAW[type];
-    chain1.push_back(obj);
+
+    fx.addNode(obj);
 }
 
 function deleteFx(name) {
     if(AC === null) return;
-    let num = null;
-    for(let k in chain1.nodes) {
-        if(chain1.nodes[k].name === name) {
-            num = k;
-            chain1.remove(k);
-            break;
-        }
-    }
-    if(num === null) return;
-    const body = get("FX").getElementsByTagName("tbody")[0];
-    body.deleteRow(Number(num) + 1);
+
+    fx.deleteNode(name);
 }
 
 function openFx(name) {
     openNode = null;
-    for(let k in chain1.nodes) {
-        if(chain1.nodes[k].name === name) {
-            openNode = chain1.nodes[k];
-            break;
-        }
-    }
+
+    openNode = fx.getAudioNode(name);
     if(openNode === null) return;
 
     get('fxEditor').innerHTML = '';
@@ -125,7 +108,12 @@ function openFx(name) {
     // TODO open channels editor see https://developer.mozilla.org/docs/Web/API/AudioNode
 }
 
-function lerp(val, start, end){
+function closeFx() {
+    get('fxEditor').innerHTML = '';
+    openNode = null;
+}
+
+function lerp(val, start, end) {
     return (1 - val) * start + val * end;
 }
 
@@ -174,7 +162,7 @@ function playOsc(note = 69) {
     let o = AC.createOscillator();
     o.frequency.value = getNoteFreq(note);
     o.type = get("waveform").value;
-    o.connect(g).connect(chain1.getInput());
+    o.connect(g).connect(fx.getInput());
     osc[note] = o;
     o.start();
 }
@@ -192,7 +180,7 @@ function playNoise() {
     noiseOsc.buffer = noiseBuf;
     noiseOsc.loop = true;
 
-    noiseOsc.connect(chain1.getInput());
+    noiseOsc.connect(fx.getInput());
 
     noiseOsc.start();
 }
@@ -277,19 +265,17 @@ async function mainloop() {
     }
 }
 
-//import Drawflow from "drawflow";
+let fx = null;
+let drawflow = null;
 
 window.onload = () => {
     AC = null;
 
     let id = document.getElementById("drawflow");
-    const editor = new Drawflow(id);
-    editor.reroute = true;
-    editor.start();
-    editor.addNode("input0", 0, 1, 0, 0, "", {test: "lol"}, "Input", false);
-    editor.addNode("output0", 1, 0, 1000, 0, "", {test: "lol"}, "Output", false);
-    //const dataToImport = {"drawflow":{"Home":{"data":{"1":{"id":1,"name":"welcome","data":{},"class":"welcome","html":"<div class=\"title-box\">👏 Welcome!!</div>","typenode": false, "inputs":{},"outputs":{},"pos_x":0,"pos_y":0}}}}};
-    //editor.import(dataToImport);
+    drawflow = new Drawflow(id);
+    drawflow.reroute = true;
+    drawflow.curvature = .25;
+    drawflow.start();
 
     let fader = get("fader");
     fader.onmousemove = fader.onchange = function() {

@@ -6,7 +6,8 @@ The fx should also be able to pack together following the magical concept of *en
 This also makes it possible to expect more technical knowledge out of the learner and for instance not provide a phaser but instead teach how to construct one from all-pass filters.
 As this is a web application there is no real way to chase performance or professionnal quality audio.
 The web audio api seems really well designed but I see no way it can equal in any way the steinberg or AU plugin formats.
-Could I make this mobile-friendly???
+Could I make this mobile-friendly???\
+Try it [here](https://hyperlan-git.github.io/plox/synth.html)
 
 ## Things that YOU could help with
 - Making the UI less ugly (am a programmer not a visual artist or a web designer...)
