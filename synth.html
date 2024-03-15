@@ -3,7 +3,11 @@
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="style.css">
-    <script src="scripts/synth.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.js"></script>
+    <script src="./scripts/FX.js"></script>
+    <script src="./scripts/FXUI.js"></script>
+    <script src="./scripts/synth.js"></script>
     <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
     <title>HyperLan</title>
 </head>
@@ -26,18 +30,6 @@
             <canvas id="oscilloscope" width="1400" height="500"></canvas>
         </p>
     </div>
-    <table id="FX">
-        <caption>Editable FX chain</caption>
-        <colgroup>
-            <col span="1" style="width: 80%;">
-            <col span="1" style="width: 10%;">
-            <col span="1" style="width: 10%;">
-         </colgroup>
-        <th>Effect</th>
-        <th>Edit</th>
-        <th>Delete</th>
-        <tbody id="fxList"></tbody>
-    </table><br>
     <div>
         <p>
             New FX
@@ -57,6 +49,7 @@
             </select>
             <button onclick="addFx(get('fxType').value);">ADD</button>
         </p>
+        <div id="drawflow" width="500px" height="500px" style="border-style: outset; background-color: grey; height: 500px; width: 100%;"></div>
         <p>
             <span id="fxEditor"></span>
         </p>
