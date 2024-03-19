@@ -158,13 +158,13 @@ class FXGraph {
         });
 
         this.inputNode.name = uidGen(10);
-        this.inputNode.type = "gain";
+        this.inputNode.fxtype = "gain";
         this.inputNode.draw = FX_DRAW['gain'];
         this.inputNode.inputs = [];
         this.inputNode.outputs = [];
 
         this.outputNode.name = uidGen(10);
-        this.outputNode.type = "gain";
+        this.outputNode.fxtype = "gain";
         this.outputNode.draw = FX_DRAW['gain'];
         this.outputNode.inputs = [];
         this.outputNode.outputs = [];
@@ -219,7 +219,7 @@ class FXGraph {
 
     addNode(node) {
         this.nodes[node.name] = node;
-        node.id = this.drawflow.addNode(node.name, 1, 1, 0, 200, "", {node: node.name}, node.type + "<br>" + node.name, false);
+        node.id = this.drawflow.addNode(node.name, 1, 1, 0, 200, "", {node: node.name}, node.fxtype + "<br>" + node.name, false);
         node.outputs = [];
         node.inputs = [];
         return node.id;

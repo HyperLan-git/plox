@@ -80,7 +80,7 @@ function addFx(type) {
 
     const obj = new node(AC);
     obj.name = uid;
-    obj.type = type;
+    obj.fxtype = type;
     if(type in FX_DRAW) obj.draw = FX_DRAW[type];
 
     fx.addNode(obj);
