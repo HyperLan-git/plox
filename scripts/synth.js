@@ -12,6 +12,8 @@ let noiseBuf = null;
 
 let openNode = null;
 
+const uiChange = .005;
+
 function get(id) {
     return document.getElementById(id);
 }
@@ -42,7 +44,7 @@ function initAudio() {
     masterFFTAnalyser = new AnalyserNode(AC);
     masterOscilloscope = new AnalyserNode(AC);
 
-    masterFader.gain.value = 0;
+    masterFader.gain.value = dbToRatio(-40);
     masterFFTAnalyser.fftSize = 4096;
     masterOscilloscope.fftSize = 512;
     masterLimiter.curve = new Float32Array([-1, 0, 1]); // Probably not meant to be used as a clipper but idc
@@ -163,14 +165,26 @@ function playOsc(note = 69) {
     o.frequency.value = getNoteFreq(note);
     o.type = get("waveform").value;
     o.connect(g).connect(fx.getInput());
-    osc[note] = o;
+    const attack = 3; // s
+    g.gain.value = 0;
+    g.gain.setTargetAtTime(1, AC.currentTime, attack / 6);
+    o.next = g;
     o.start();
+    osc[note] = o;
 }
 
 function stopOsc(note = 69) {
     if(osc[note] === undefined) return;
-    osc[note].stop();
-    osc[note] = undefined;
+    const release = .05; // s
+    const o = osc[note];
+    setTimeout(() => {
+        o.next.disconnect();
+        o.disconnect();
+        test2.disconnect(o.detune);
+    }, release * 1000);
+    o.next.gain.setTargetAtTime(0, AC.currentTime, release / 6);
+    o.stop(AC.currentTime + release);
+    delete osc[note];
 }
 
 function playNoise() {
@@ -281,7 +295,7 @@ window.onload = () => {
     fader.onmousemove = fader.onchange = function() {
         if(AC === null) return;
         get("fadervalue").innerHTML = this.value + " db";
-        masterFader.gain.setValueAtTime(dbToRatio(this.value), AC.currentTime);
+        masterFader.gain.setTargetAtTime(dbToRatio(this.value), AC.currentTime, uiChange);
     };
 
     const KEYS = ['<', 'w', 's', 'x', 'd', 'c', 'v', 'g', 'b', 'h', 'n', 'j', ',', ';', 'l', ':', 'm', '!'],

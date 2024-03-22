@@ -118,15 +118,10 @@ class FXGraph {
         this.drawflow.on("connectionCreated", (e) => {
             const out = this.getAudioNodeFromId(e.output_id),
                     input = this.getAudioNodeFromId(e.input_id);
-            if(out.outputs.includes(e.input_id)) {
-                // I have to do this because there is no way to cancel the event...
-                this.drawflow.removeSingleConnection(e.output_id, e.input_id, e.output_class, e.input_class);
-            }
 
             input.inputs.push(e.output_id);
             out.outputs.push(e.input_id);
 
-            this.drawflow.addNodeOutput(e.output_id);
             out.connect(input);
         });
         this.drawflow.on("connectionRemoved", (e) => {
@@ -137,16 +132,24 @@ class FXGraph {
                 input.inputs.splice(input.inputs.indexOf(e.output_id), 1);
                 out.disconnect(input);
             }
-            this.drawflow.removeNodeOutput(e.output_id, e.output_class);
         });
         this.drawflow.on("nodeRemoved", (e) => {
             //XXX recreate connections
             if(e == this.inputNode.id) {
                 this.inputNode.id = this.drawflow.addNode("input", 0, 1, 0, 0, "", {node: this.inputNode.name}, "Input", false);
+                this.inputNode.disconnect();
+                this.inputNode.outputs = [];
                 return;
             }
             if(e == this.outputNode.id) {
                 this.outputNode.id = this.drawflow.addNode("output", 1, 0, 1000, 0, "", {node: this.outputNode.name}, "Output", false);
+                for(let k in this.nodes) {
+                    const i = this.nodes[k].outputs.indexOf(this.outputNode.id);
+                    if(i != -1) {
+                        this.nodes[k].outputs.splice(i);
+                        return;
+                    }
+                }
                 return;
             }
             for(let k in this.nodes) {
