@@ -162,26 +162,46 @@ function playOsc(note = 69) {
 
     let g = AC.createGain();
     let o = AC.createOscillator();
+
     o.frequency.value = getNoteFreq(note);
     o.type = get("waveform").value;
     o.connect(g).connect(fx.getInput());
-    const attack = 3; // s
+
+    const attack = Number(get("attack").value) / 1000,
+        decay = Number(get("decay").value) / 1000,
+        sustain = Number(get("sustain").value);
     g.gain.value = 0;
     g.gain.setTargetAtTime(1, AC.currentTime, attack / 6);
-    o.next = g;
+    g.gain.setTargetAtTime(sustain, AC.currentTime + attack, decay / 6);
+    o.adsr = g;
+
+    let fm = AC.createOscillator(),
+        fmg = AC.createGain();
+
+    fmg.gain.value = o.frequency.value * get("fm").value / 100;
+    fm.frequency.value = o.frequency.value;
+    fm.type = get("waveform2").value;
+    fm.connect(fmg).connect(o.frequency);
+    o.fm = fm;
+    o.fmg = fmg;
+
+    fm.start();
     o.start();
     osc[note] = o;
 }
 
 function stopOsc(note = 69) {
     if(osc[note] === undefined) return;
-    const release = .05; // s
+    const release = Number(get("release").value) / 1000; // s
     const o = osc[note];
     setTimeout(() => {
-        o.next.disconnect();
+        o.fm.stop();
+        o.fm.disconnect();
+        o.fmg.disconnect();
+        o.adsr.disconnect();
         o.disconnect();
     }, release * 1000);
-    o.next.gain.setTargetAtTime(0, AC.currentTime, release / 6);
+    o.adsr.gain.setTargetAtTime(0, AC.currentTime, release / 6);
     o.stop(AC.currentTime + release);
     delete osc[note];
 }
@@ -202,6 +222,15 @@ function stopNoise() {
     if(noiseOsc === null) return;
     noiseOsc.stop();
     noiseOsc = null;
+}
+
+function updateADSR() {
+    if(AC === null) return;
+
+    get("attackval").innerHTML = get("attack").value;
+    get("decayval").innerHTML = get("decay").value;
+    get("sustainval").innerHTML = get("sustain").value;
+    get("releaseval").innerHTML = get("release").value;
 }
 
 // XXX redesign this
