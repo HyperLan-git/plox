@@ -176,14 +176,17 @@ function playOsc(note = 69) {
     o.adsr = g;
 
     let fm = AC.createOscillator(),
-        fmg = AC.createGain();
+        fmg = AC.createGain(),
+        fmgm = AC.createGain();
 
-    fmg.gain.value = o.frequency.value * get("fm").value / 100;
+    fmg.gain.value = o.frequency.value;
+    fmgm.gain.value = get("fm").value / 100;
     fm.frequency.value = o.frequency.value;
     fm.type = get("waveform2").value;
-    fm.connect(fmg).connect(o.frequency);
+    fm.connect(fmg).connect(fmgm).connect(o.frequency);
     o.fm = fm;
     o.fmg = fmg;
+    o.fmgm = fmgm;
 
     fm.start();
     o.start();
@@ -198,6 +201,7 @@ function stopOsc(note = 69) {
         o.fm.stop();
         o.fm.disconnect();
         o.fmg.disconnect();
+        o.fmgm.disconnect();
         o.adsr.disconnect();
         o.disconnect();
     }, release * 1000);
@@ -231,6 +235,14 @@ function updateADSR() {
     get("decayval").innerHTML = get("decay").value;
     get("sustainval").innerHTML = get("sustain").value;
     get("releaseval").innerHTML = get("release").value;
+}
+
+function updateFM() {
+    if(AC === null) return;
+    get('fmval').innerHTML = get("fm").value;
+    for(let k in osc) {
+        osc[k].fmgm.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, .005);
+    }
 }
 
 // XXX redesign this
