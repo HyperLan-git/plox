@@ -3,7 +3,7 @@ function gainChanged(name) {
     if(AC === null) return;
     const val = get('fader_' + name).value;
     get("fadervalue_" + name).innerHTML = val + " db";
-    openNode.gain.setValueAtTime(dbToRatio(val), AC.currentTime);
+    openNode.gain.setTargetAtTime(dbToRatio(val), AC.currentTime, uiChange);
 }
 
 function drawGain() {
@@ -20,7 +20,7 @@ function delayChanged(name) {
     if(AC === null) return;
     const val = get('delay_' + name).value;
     get("delayvalue_" + name).innerHTML = val + " ms";
-    openNode.delayTime.setValueAtTime(val / 1000, AC.currentTime);
+    openNode.delayTime.setTargetAtTime(val / 1000, AC.currentTime, uiChange);
 }
 
 function drawDelay() {
@@ -261,103 +261,34 @@ function drawBFilterEQ() {
     //let ctx = new CanvasRenderingContext2D();
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, w, h);
+    ctx.lineWidth = 3;
+    const points = 400;
+    let freq = new Float32Array(points),
+        mag = new Float32Array(points),
+        phase = new Float32Array(points);
+    for(let i = 0; i < points; i++)
+        freq[i] = (logToLinear(i * w / points, 1, w) - 1) / 2 * AC.sampleRate / w;
+    openNode.getFrequencyResponse(freq, mag, phase);
+
     ctx.fillStyle = "orange";
     ctx.strokeStyle = "rgb(151, 98, 0)";
-    ctx.lineWidth = 3;
-    const xF = linearToLog((openNode.frequency.value * w / AC.sampleRate * 2) + 1, 1, w),
-            xLow = linearToLog(((openNode.frequency.value / 3.33) * w / AC.sampleRate * 2) + 1, 1, w), // Where a highpass would fall to -40
-            xHigh = linearToLog(((openNode.frequency.value * 3.33) * w / AC.sampleRate * 2) + 1, 1, w);
-    const gain = openNode.gain.value * 5; // 5px per db
-    switch(openNode.type) {
-        case "allpass":
-            ctx.fillStyle = "cyan";
-            ctx.strokeStyle = "blue";
-            ctx.beginPath();
-            ctx.moveTo(0, h);
-            ctx.lineTo(0, hh);
-            ctx.lineTo(xLow, hh);
-            ctx.lineTo(xF, 0);
-            ctx.lineTo(xF, h);
-            ctx.lineTo(xHigh, hh);
-            ctx.lineTo(w, hh);
-            ctx.lineTo(w, h);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case "bandpass":
-            ctx.beginPath();
-            ctx.moveTo((xF + xLow) / 2, h);
-            ctx.lineTo(xF, hh);
-            ctx.lineTo((xF + xHigh) / 2, h);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case "highpass":
-            ctx.beginPath();
-            ctx.moveTo(xLow, h);
-            ctx.lineTo(xF, hh);
-            ctx.lineTo(w, hh);
-            ctx.lineTo(w, h);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case "highshelf":
-            ctx.beginPath();
-            ctx.moveTo(0, h);
-            ctx.lineTo(0, hh);
-            ctx.lineTo((xF + xLow) / 2, hh);
-            ctx.lineTo((xF + xHigh) / 2, hh - gain);
-            ctx.lineTo(w, hh - gain);
-            ctx.lineTo(w, h);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case "lowpass":
-            ctx.beginPath();
-            ctx.moveTo(0, h);
-            ctx.lineTo(0, hh);
-            ctx.lineTo(xF, hh);
-            ctx.lineTo(xHigh, h);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case "lowshelf":
-            ctx.beginPath();
-            ctx.moveTo(0, h);
-            ctx.lineTo(0, hh - gain);
-            ctx.lineTo((xF + xLow) / 2, hh - gain);
-            ctx.lineTo((xF + xHigh) / 2, hh);
-            ctx.lineTo(w, hh);
-            ctx.lineTo(w, h);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case "notch":
-            ctx.beginPath();
-            ctx.moveTo(0, h);
-            ctx.lineTo(0, hh);
-            ctx.lineTo((xF + xLow) / 2, hh);
-            ctx.lineTo(xF, h);
-            ctx.lineTo((xF + xHigh) / 2, hh);
-            ctx.lineTo(w, hh);
-            ctx.lineTo(w, h);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case "peaking":
-            ctx.beginPath();
-            ctx.moveTo(0, h);
-            ctx.lineTo(0, hh);
-            ctx.lineTo((xF + xLow) / 2, hh);
-            ctx.lineTo(xF, hh - gain);
-            ctx.lineTo((xF + xHigh) / 2, hh);
-            ctx.lineTo(w, hh);
-            ctx.lineTo(w, h);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        default:
-    }
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for(let i = 0; i < points; i++)
+        ctx.lineTo(i * w / points, hh - (ratioToDB(mag[i]) / 40) * hh);
+    ctx.lineTo(w, h);
+    ctx.stroke();
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(43, 250, 250, .2)";
+    ctx.strokeStyle = "rgba(0, 0, 250, .2)";
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for(let i = 0; i < points; i++)
+        ctx.lineTo(i * w / points, phase[i] * hh / Math.PI + hh);
+    ctx.lineTo(w, h);
+    ctx.stroke();
+    ctx.fill();
 }
 
 function drawCompressor() {
@@ -366,11 +297,16 @@ function drawCompressor() {
 
     return {
         html: "Current reduction : <canvas id='comgraph_" + name + "' width='70' height='200'></canvas><br>" +
-        "Attack : <input " + upd + " id='comattack_" + name + "' type='range' min='0' max='1000' step='1' value='" + Math.round(this.attack.value * 1000) + "'></input><br>" +
-        "Knee : <input " + upd + " id='comknee_" + name + "' type='range' min='0' max='40' step='.1' value='" + this.knee.value + "'></input><br>" +
-        "Ratio : <input " + upd + " id='comratio_" + name + "' type='range' min='1' max='20' step='0.1' value='" + this.ratio.value + "'></input><br>" +
-        "Release : <input " + upd + " id='comrelease_" + name + "' type='range' min='0' max='1000' step='1' value='" + Math.round(this.release.value * 1000) + "'></input><br>" +
-        "Threshold : <input " + upd + " id='comthreshold_" + name + "' type='range' min='-40' max='0' step='0.1' value='" + this.threshold.value + "'></input><br>",
+        "Attack : <input " + upd + " id='comattack_" + name + "' type='range' min='0' max='1000' step='1' value='" + Math.round(this.attack.value * 1000) + "'></input>" +
+        "<span id='comattackval_" + name + "'>" + Math.round(this.attack.value * 1000) + "</span> ms<br>" +
+        "Knee : <input " + upd + " id='comknee_" + name + "' type='range' min='0' max='40' step='.1' value='" + this.knee.value + "'></input>" +
+        "<span id='comkneeval_" + name + "'>" + this.knee.value + "</span> db<br>" +
+        "Ratio : <input " + upd + " id='comratio_" + name + "' type='range' min='1' max='20' step='0.1' value='" + this.ratio.value + "'></input>" +
+        "1 : <span id='comratioval_" + name + "'>" + this.ratio.value + "</span><br>" +
+        "Release : <input " + upd + " id='comrelease_" + name + "' type='range' min='0' max='1000' step='1' value='" + Math.round(this.release.value * 1000) + "'></input>" +
+        "<span id='comreleaseval_" + name + "'>" + Math.round(this.release.value * 1000) + "</span> ms<br>" +
+        "Threshold : <input " + upd + " id='comthreshold_" + name + "' type='range' min='-40' max='0' step='0.1' value='" + this.threshold.value + "'></input>" +
+        "<span id='comthresholdval_" + name + "'>" + this.threshold.value + "</span> db<br>",
         canvas: () => { drawCompressorCanvas(); updateCompressorCanvas(name); }
     };
 }
@@ -379,11 +315,23 @@ function updateCompressor() {
     if(AC === null) return;
     const name = openNode.name;
 
-    openNode.attack.value = get('comattack_' + name).value / 1000;
-    openNode.knee.value = get('comknee_' + name).value;
-    openNode.ratio.value = get('comratio_' + name).value;
-    openNode.release.value = get('comrelease_' + name).value / 1000;
-    openNode.threshold.value = get('comthreshold_' + name).value;
+    const att = get('comattack_' + name).value,
+        knee = get('comknee_' + name).value,
+        ratio = get('comratio_' + name).value,
+        rel = get('comrelease_' + name).value,
+        thresh = get('comthreshold_' + name).value;
+
+    openNode.attack.value = att / 1000;
+    openNode.knee.value = knee;
+    openNode.ratio.value = ratio;
+    openNode.release.value = rel / 1000;
+    openNode.threshold.value = thresh;
+
+    get('comattackval_' + name).innerHTML = att;
+    get('comkneeval_' + name).innerHTML = Math.round(knee * 10) / 10;
+    get('comratioval_' + name).innerHTML = Math.round(ratio * 10) / 10;
+    get('comreleaseval_' + name).innerHTML = rel;
+    get('comthresholdval_' + name).innerHTML = Math.round(thresh * 10) / 10;
 }
 
 function drawCompressorCanvas() {
@@ -555,23 +503,25 @@ function updateAnalyserCanvas(name) {
             if(!isFinite(y) || y >= h * .9) y = h * .9;
             ctx.fillRect(x1, y, x2 - x1, h * .9 - y);
         }
-    } else {
-        const arr = new Float32Array(openNode.fftSize);
-        openNode.getFloatTimeDomainData(arr);
-
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "yellow";
-        ctx.beginPath();
-        let y = arr[0] * hh * .9 + hh * .9;
-        if(y >= h * .9) y = h * .9;
-        ctx.moveTo(0, y);
-        for(let i = 1; i < w; i++) {
-            y = arr[Math.floor(arr.length * i / w)] * hh * .9 + hh * .9;
-            if(y >= h * .9) y = h * .9
-            ctx.lineTo(i, y);
-        }
-        ctx.stroke();
+        setTimeout(() => updateAnalyserCanvas(name), 1/30); // 30hz refresh rate
+        return;
     }
+    // else it is an oscilloscope
+    const arr = new Float32Array(openNode.fftSize);
+    openNode.getFloatTimeDomainData(arr);
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "yellow";
+    ctx.beginPath();
+    let y = arr[0] * hh * .9 + hh * .9;
+    if(y >= h * .9) y = h * .9;
+    ctx.moveTo(0, y);
+    for(let i = 1; i < w; i++) {
+        y = arr[Math.floor(arr.length * i / w)] * hh * .9 + hh * .9;
+        if(y >= h * .9) y = h * .9
+        ctx.lineTo(i, y);
+    }
+    ctx.stroke();
     setTimeout(() => updateAnalyserCanvas(name), 1/30); // 30hz refresh rate
 }
 
