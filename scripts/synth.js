@@ -104,7 +104,7 @@ function openFx(name) {
     if('draw' in openNode) {
         const drawn = openNode.draw();
         get('fxEditor').innerHTML = drawn['html'];
-        if(drawn['canvas'] !== undefined) drawn['canvas']();
+        if(drawn['canvas'] !== undefined) setTimeout(() => drawn['canvas'](), 1);
     }
     get('fxEditor').innerHTML += '<br>';
     // TODO open channels editor see https://developer.mozilla.org/docs/Web/API/AudioNode
@@ -180,7 +180,6 @@ function stopOsc(note = 69) {
     setTimeout(() => {
         o.next.disconnect();
         o.disconnect();
-        test2.disconnect(o.detune);
     }, release * 1000);
     o.next.gain.setTargetAtTime(0, AC.currentTime, release / 6);
     o.stop(AC.currentTime + release);

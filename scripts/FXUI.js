@@ -297,11 +297,16 @@ function drawCompressor() {
 
     return {
         html: "Current reduction : <canvas id='comgraph_" + name + "' width='70' height='200'></canvas><br>" +
-        "Attack : <input " + upd + " id='comattack_" + name + "' type='range' min='0' max='1000' step='1' value='" + Math.round(this.attack.value * 1000) + "'></input><br>" +
-        "Knee : <input " + upd + " id='comknee_" + name + "' type='range' min='0' max='40' step='.1' value='" + this.knee.value + "'></input><br>" +
-        "Ratio : <input " + upd + " id='comratio_" + name + "' type='range' min='1' max='20' step='0.1' value='" + this.ratio.value + "'></input><br>" +
-        "Release : <input " + upd + " id='comrelease_" + name + "' type='range' min='0' max='1000' step='1' value='" + Math.round(this.release.value * 1000) + "'></input><br>" +
-        "Threshold : <input " + upd + " id='comthreshold_" + name + "' type='range' min='-40' max='0' step='0.1' value='" + this.threshold.value + "'></input><br>",
+        "Attack : <input " + upd + " id='comattack_" + name + "' type='range' min='0' max='1000' step='1' value='" + Math.round(this.attack.value * 1000) + "'></input>" +
+        "<span id='comattackval_" + name + "'>" + Math.round(this.attack.value * 1000) + "</span> ms<br>" +
+        "Knee : <input " + upd + " id='comknee_" + name + "' type='range' min='0' max='40' step='.1' value='" + this.knee.value + "'></input>" +
+        "<span id='comkneeval_" + name + "'>" + this.knee.value + "</span> db<br>" +
+        "Ratio : <input " + upd + " id='comratio_" + name + "' type='range' min='1' max='20' step='0.1' value='" + this.ratio.value + "'></input>" +
+        "1 : <span id='comratioval_" + name + "'>" + this.ratio.value + "</span><br>" +
+        "Release : <input " + upd + " id='comrelease_" + name + "' type='range' min='0' max='1000' step='1' value='" + Math.round(this.release.value * 1000) + "'></input>" +
+        "<span id='comreleaseval_" + name + "'>" + Math.round(this.release.value * 1000) + "</span> ms<br>" +
+        "Threshold : <input " + upd + " id='comthreshold_" + name + "' type='range' min='-40' max='0' step='0.1' value='" + this.threshold.value + "'></input>" +
+        "<span id='comthresholdval_" + name + "'>" + this.threshold.value + "</span> db<br>",
         canvas: () => { drawCompressorCanvas(); updateCompressorCanvas(name); }
     };
 }
@@ -310,11 +315,23 @@ function updateCompressor() {
     if(AC === null) return;
     const name = openNode.name;
 
-    openNode.attack.value = get('comattack_' + name).value / 1000;
-    openNode.knee.value = get('comknee_' + name).value;
-    openNode.ratio.value = get('comratio_' + name).value;
-    openNode.release.value = get('comrelease_' + name).value / 1000;
-    openNode.threshold.value = get('comthreshold_' + name).value;
+    const att = get('comattack_' + name).value,
+        knee = get('comknee_' + name).value,
+        ratio = get('comratio_' + name).value,
+        rel = get('comrelease_' + name).value,
+        thresh = get('comthreshold_' + name).value;
+
+    openNode.attack.value = att / 1000;
+    openNode.knee.value = knee;
+    openNode.ratio.value = ratio;
+    openNode.release.value = rel / 1000;
+    openNode.threshold.value = thresh;
+
+    get('comattackval_' + name).innerHTML = att;
+    get('comkneeval_' + name).innerHTML = Math.round(knee * 10) / 10;
+    get('comratioval_' + name).innerHTML = Math.round(ratio * 10) / 10;
+    get('comreleaseval_' + name).innerHTML = rel;
+    get('comthresholdval_' + name).innerHTML = Math.round(thresh * 10) / 10;
 }
 
 function drawCompressorCanvas() {
