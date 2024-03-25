@@ -1,101 +1,125 @@
-class FXChain {
-    inputNode;
-    outputNode;
-    nodes;
+//import Drawflow from "drawflow";
 
-    constructor(context) {
-        this.nodes = [];
-        this.inputNode = new GainNode(context);
-        this.outputNode = new GainNode(context);
-
-        this.inputNode.connect(this.outputNode);
-    }
-
-    push_front(node) {
-        this.inputNode.disconnect();
-        this.inputNode.connect(node);
-
-        if(this.nodes.length > 0) node.connect(this.nodes[0]);
-        else node.connect(this.outputNode);
-
-        this.nodes.unshift(node);
-    }
-
-    push_back(node) {
-        if(this.nodes.length > 0) {
-            this.nodes[this.nodes.length - 1].disconnect();
-            this.nodes[this.nodes.length - 1].connect(node);
-        } else {
-            this.inputNode.disconnect();
-            this.inputNode.connect(node);
-        }
-
-        node.connect(this.outputNode);
-        this.nodes.push(node);
-    }
-
-    pop_front() {
-        if(this.nodes.length == 0) return null; 
-        this.nodes[0].disconnect();
-        this.inputNode.disconnect();
-        if(this.nodes.length == 1)
-            this.inputNode.connect(this.outputNode);
-        else
-            this.inputNode.connect(this.nodes[1]);
-        return this.nodes.shift();
-    }
-
-    pop_back() {
-        if(this.nodes.length == 0) return null;
-        this.nodes[this.nodes.length - 1].disconnect();
-        if(this.nodes.length == 1)
-            this.inputNode.connect(this.outputNode);
-        else
-            this.nodes[this.nodes.length - 2].connect(this.outputNode);
-        return this.nodes.pop();
-    }
-
-    insert(pos, node) {
-        if (pos >= this.nodes.length) return this.push_back(node);
-        if (pos <= 0) return this.push_front(node);
-
-        this.nodes[pos - 1].disconnect();
-        this.nodes[pos - 1].connect(node);
-        node.connect(this.nodes[pos]);
-        this.nodes.splice(pos, 0, node);
-        return node;
-    }
-
-    remove(pos) {
-        if (pos >= this.nodes.length - 1) return this.pop_back();
-        if (pos <= 0) return this.pop_front();
-        this.nodes[pos - 1].disconnect();
-        this.nodes[pos - 1].connect(this.nodes[pos + 1]);
-        return this.nodes.splice(pos, 1)[0];
-    }
-
-    get(pos) {
-        return this.nodes[pos];
-    }
-
-    getInput() {
-        return this.inputNode;
-    }
-
-    getOutput() {
-        return this.outputNode;
-    }
-
-    connect(node) {
-        return this.outputNode.connect(node);
-    }
-
-    disconnect() {
-        this.outputNode.disconnect();
-    }
+const FX_TYPES = {
+    "gain": GainNode,
+    "biquadfilter": BiquadFilterNode,
+    "iirfilter": IIRFilterNode,
+    "distortion": WaveShaperNode,
+    "convolver": ConvolverNode,
+    "delay": DelayNode,
+    "compressor": DynamicsCompressorNode,
+    "stereopanner": StereoPannerNode,
+    "channelmerger": ChannelMergerNode,
+    "channelsplitter": ChannelSplitterNode,
+    "analyser": AnalyserNode,
+    "oscillator": OscillatorNode,
+    "audiobuffersource": AudioBufferSourceNode,
+    "streamsource": MediaStreamAudioSourceNode,
+    "streamdestination": MediaStreamAudioDestinationNode,
+    "worklet": AudioWorkletNode,
+    "constant": ConstantSourceNode
 };
 
-//import Drawflow from "drawflow";
+const MODULATIONS = {
+    "gain": ["gain"],
+    "delay": ["delayTime"],
+    "distortion": [],
+    "biquadfilter": ["detune", "frequency", "Q", "gain"],
+    "compressor": ["threshold", "knee", "ratio", "attack", "release"],
+    "stereopanner": ["pan"],
+    "analyser": [],
+    "convolver": [],
+    "oscillator": ["detune", "frequency"],
+    "audiobuffersource": ["detune", "playbackRate"],
+    "streamsource": []
+};
+
+/**
+ * Wrapper for every node in the webapi (why do we have no way to access data about connections?)
+ */
+class FX {
+    // internals
+    inputs;
+    inputParams;
+    outputs;
+    outputParams;
+    node;
+
+    // unique
+    name;
+
+    // tells the type of the node
+    fxtype;
+
+    // editable by user
+    label;
+
+    constructor(node) {
+        this.inputs = {};
+        this.inputParams = {};
+        this.outputs = [];
+        this.outputParams = [];
+        this.node = node;
+        this.name = uidGen(10);
+        for(let k in FX_TYPES)
+            if(FX_TYPES[k].prototype.constructor === node.constructor) {
+                this.fxtype = k;
+                break;
+            }
+        if(this.fxtype === undefined) throw new TypeError("Node given is not a supported type !");
+        this.label = this.fxtype + "-" + this.name;
+    }
+
+    connect(fx, output = 0, input = 0) {
+        this.outputs.push({fx: fx, idx: output, input: input});
+        fx.inputs[this.name + input] = {fx: this, idx: input, output: output};
+
+        this.node.connect(fx.node, output, input);
+    }
+
+    connectParam(fx, param, output = 0) {
+        if(MODULATIONS[fx.fxtype].indexOf(param) === -1) throw new TypeError(param + " is not a param of the fx provided !");
+        this.outputParams.push({fx: fx, param: param, idx: output});
+        fx.inputParams[this.name + param + output] = {fx: this, param: param, output: output};
+        this.node.connect(fx.node[param], output);
+    }
+
+    disconnectAll() {
+        this.disconnect();
+    }
+
+    disconnectOutput(output) {
+        this.disconnect(undefined, output);
+    }
+
+    disconnectFx(fx) {
+        this.disconnect(fx);
+    }
+
+    disconnect(fx = undefined, output = undefined, input = undefined) {
+        if(fx === undefined) {
+            if(output !== undefined) {
+                this.node.disconnect(output);
+                return;
+            }
+            this.node.disconnect();
+            for(let k in outputs) {
+                const v = outputs[k];
+                const input = v.fx.inputs[this.name + v["input"]];
+
+            }
+            return;
+        }
+        if(output === undefined) {
+            this.node.disconnect(fx.node);
+            return;
+        }
+    }
+
+    copy(copyConnections = false) {
+
+    }
+}
 
 class FXGraph {
     nodes;

@@ -7,6 +7,7 @@
     <script src="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.js"></script>
     <script src="./scripts/FX.js"></script>
     <script src="./scripts/FXUI.js"></script>
+    <script src="./scripts/mod.js"></script>
     <script src="./scripts/synth.js"></script>
     <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
     <title>HyperLan</title>
@@ -54,8 +55,8 @@
                 <option value="delay">Delay</option>
                 <option value="compressor">Compressor</option>
                 <option value="stereopanner">Panner</option>
-                <option value="channelmerger">Channel merger</option>
-                <option value="channelsplitter">Channel splitter</option>
+                <!--<option value="channelmerger">Channel merger</option>
+                <option value="channelsplitter">Channel splitter</option>-->
                 <option value="analyser">Frequency analyser/Oscilloscope</option><!-- XXX add loudness analyser? -->
                 <!-- XXX <option value="stereo">Stereo field analyser</option>-->
             </select>
@@ -63,7 +64,22 @@
         </p>
         <div id="drawflow" width="500px" height="500px" style="border-style: outset; background-color: grey; height: 500px; width: 100%;"></div>
         <p>
-            <span id="fxEditor"></span>
+            <span id="fxEditor"></span><br>
+            <button onclick="addModulation()">Add modulation</button>
         </p>
     </div>
+    <table id="mod">
+        <caption>Modulation matrix</caption>
+        <colgroup>
+            <col span="1" style="width: 20%;">
+            <col span="1" style="width: 20%;">
+            <col span="1" style="width: 40%;">
+            <col span="1" style="width: 20%;">
+         </colgroup>
+        <th>Input</th>
+        <th>Output</th>
+        <th>Amount</th>
+        <th>Delete</th>
+        <tbody id="modList"></tbody>
+    </table>
 </body>

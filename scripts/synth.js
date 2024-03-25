@@ -12,7 +12,11 @@ let noiseBuf = null;
 
 let openNode = null;
 
-const uiChange = .005;
+const uiChange = .005; // 5ms
+
+let osc1 = null, osc2 = null;
+
+let modulations = [];
 
 function get(id) {
     return document.getElementById(id);
@@ -62,19 +66,6 @@ function initAudio() {
 }
 
 function addFx(type) {
-    const FX_TYPES = {
-        "gain": GainNode,
-        "biquadfilter": BiquadFilterNode,
-        //"filter": IIRFilterNode,
-        "distortion": WaveShaperNode,
-        "convolver": ConvolverNode,
-        "delay": DelayNode,
-        "compressor": DynamicsCompressorNode,
-        "stereopanner": StereoPannerNode,
-        "channelmerger": ChannelMergerNode,
-        "channelsplitter": ChannelSplitterNode,
-        "analyser": AnalyserNode
-    };
     let node = FX_TYPES[type];
     if(node === undefined) return;
 
