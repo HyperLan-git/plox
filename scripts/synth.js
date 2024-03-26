@@ -27,19 +27,6 @@ function getMousePos(canvas, e) {
     return {x: e.clientX - rect.left, y: e.clientY - rect.top};
 }
 
-// Code shamelessly stolen from SO
-function uidGen(length) {
-    let result = '';
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    const charactersLength = characters.length;
-    let counter = 0;
-    while (counter < length) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
-      counter++;
-    }
-    return result;
-}
-
 function initAudio() {
     AC = new AudioContext();
 
@@ -69,14 +56,7 @@ function addFx(type) {
     let node = FX_TYPES[type];
     if(node === undefined) return;
 
-    const uid = uidGen(10);
-
-    const obj = new node(AC);
-    obj.name = uid;
-    obj.fxtype = type;
-    if(type in FX_DRAW) obj.draw = FX_DRAW[type];
-
-    fx.addNode(obj);
+    fx.addNode(new node(AC));
 }
 
 function deleteFx(name) {
@@ -86,13 +66,11 @@ function deleteFx(name) {
 }
 
 function openFx(name) {
-    openNode = null;
-
     openNode = fx.getAudioNode(name);
     if(openNode === null) return;
 
     get('fxEditor').innerHTML = '';
-    if('draw' in openNode) {
+    if(openNode.fxtype in FX_DRAW) {
         const drawn = openNode.draw();
         get('fxEditor').innerHTML = drawn['html'];
         if(drawn['canvas'] !== undefined) setTimeout(() => drawn['canvas'](), 1);

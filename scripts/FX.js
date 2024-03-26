@@ -1,5 +1,3 @@
-//import Drawflow from "drawflow";
-
 const FX_TYPES = {
     "gain": GainNode,
     "biquadfilter": BiquadFilterNode,
@@ -20,19 +18,51 @@ const FX_TYPES = {
     "constant": ConstantSourceNode
 };
 
+const PARAMS = {
+    "gain": ["gain"],
+    "delay": ["delayTime"],
+    "distortion": ["curve", "oversample"],
+    "biquadfilter": ["detune", "frequency", "Q", "gain", "type"],
+    "iirfilter": [],
+    "compressor": ["threshold", "knee", "ratio", "attack", "release"],
+    "stereopanner": ["pan"],
+    "analyser": ["fftSize", "minDecibels", "maxDecibels", "smoothingTimeConstant"],
+    "convolver": ["buffer", "normalize"],
+    "oscillator": ["detune", "frequency", "type"],
+    "audiobuffersource": ["detune", "playbackRate", "buffer", "loop", "loopStart", "loopEnd"],
+    "streamsource": [],
+    "streamdestination": [],
+    "constant": ["offset"]
+};
+
 const MODULATIONS = {
     "gain": ["gain"],
     "delay": ["delayTime"],
     "distortion": [],
     "biquadfilter": ["detune", "frequency", "Q", "gain"],
+    "iirfilter": [],
     "compressor": ["threshold", "knee", "ratio", "attack", "release"],
     "stereopanner": ["pan"],
     "analyser": [],
     "convolver": [],
     "oscillator": ["detune", "frequency"],
     "audiobuffersource": ["detune", "playbackRate"],
-    "streamsource": []
+    "streamsource": [],
+    "constant": ["offset"]
 };
+
+// Code shamelessly stolen from SO
+function uidGen(length) {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const charactersLength = characters.length;
+    let counter = 0;
+    while (counter < length) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+      counter++;
+    }
+    return result;
+}
 
 /**
  * Wrapper for every node in the webapi (why do we have no way to access data about connections?)
@@ -44,6 +74,9 @@ class FX {
     outputs;
     outputParams;
     node;
+
+    // function to draw ui
+    draw;
 
     // unique
     name;
@@ -67,6 +100,7 @@ class FX {
                 break;
             }
         if(this.fxtype === undefined) throw new TypeError("Node given is not a supported type !");
+        if(FX_DRAW.indexOf(this.fxtype) != -1) this.draw = FX_DRAW[this.fxtype];
         this.label = this.fxtype + "-" + this.name;
     }
 
@@ -84,42 +118,164 @@ class FX {
         this.node.connect(fx.node[param], output);
     }
 
-    disconnectAll() {
-        this.disconnect();
-    }
-
-    disconnectOutput(output) {
-        this.disconnect(undefined, output);
-    }
-
-    disconnectFx(fx) {
-        this.disconnect(fx);
-    }
-
-    disconnect(fx = undefined, output = undefined, input = undefined) {
-        if(fx === undefined) {
-            if(output !== undefined) {
-                this.node.disconnect(output);
+    disconnectParam(fx, param, output = 0) {
+        for(let k = 0; k < this.outputParams.length; k++) {
+            const v = this.outputParams[k];
+            if(v["fx"] == fx && v["param"] == param && v["idx"] == output) {
+                delete v.fx.inputParams[this.name + v["param"] + v["idx"]];
+                this.outputParams.splice(k, 1);
                 return;
             }
-            this.node.disconnect();
-            for(let k in outputs) {
-                const v = outputs[k];
-                const input = v.fx.inputs[this.name + v["input"]];
+        }
+    }
 
+    disconnectAll(params = true) {
+        this.node.disconnect();
+        for(let k in this.outputs) {
+            const v = this.outputs[k];
+            delete v.fx.inputs[this.name + v["input"]];
+        }
+        if(params) for(let k in this.outputParams) {
+            const v = this.outputParams[k];
+            delete v.fx.inputParams[this.name + v["param"] + v["idx"]];
+        }
+        this.outputs = [];
+        if(params) this.outputParams = [];
+    }
+
+    disconnectOutput(output, params = true) {
+        if(params)
+            this.node.disconnect(output);
+        else {
+            for(const v of this.outputs) if(v["idx"] == output)
+                this.node.disconnect(v["fx"].node, v["idx"]);
+        }
+
+        this.filterConnections(((v) => v["idx"] == output), params ? ((v) => v["idx"] == output) : (() => false));
+    }
+
+    disconnectOutputFx(fx, output, params = true) {
+        if(params) {
+            this.node.disconnect(fx, output);
+            for(const v of this.outputParams) if(v["idx"] == output)
+                this.node.disconnect(v["fx"].node[v["param"]], v["idx"]);
+        } else
+            this.node.disconnect(fx, output);
+
+        this.filterConnections(((v) => v["idx"] == output && v["fx"] == fx), params ? ((v) => v["idx"] == output && v["fx"] == fx) : (() => false));
+    }
+
+    disconnectFx(fx, params = true) {
+        if(params) for(const v of this.outputParams) if(v["fx"] == fx)
+            this.node.disconnect(fx.node[v["param"]]);
+        this.node.disconnect(fx.node);
+        this.filterConnections(((v) => v["fx"] == fx), params ? ((v) => v["fx"] == fx) : (() => false));
+    }
+
+    filterConnections(filter, paramsFilter) {
+        for(let k = 0; k < this.outputs.length;) {
+            const v = this.outputs[k];
+            if(!filter(v)) {
+                k++;
+                continue;
             }
+            delete v.fx.inputs[this.name + v["input"]];
+            this.outputs.splice(k, 1);
+        }
+        for(let k = 0; k < this.outputParams.length;) {
+            const v = this.outputParams[k];
+            if(!paramsFilter(v)) {
+                k++;
+                continue;
+            }
+            delete v.fx.inputParams[this.name + v["param"] + v["idx"]];
+            this.outputParams.splice(k, 1);
+        }
+    }
+
+    disconnectInputs() {
+        for(const k in this.inputParams) {
+            const v = this.inputs[k];
+            v["fx"].disconnect(this);
+        }
+        for(const k in this.inputs) {
+            const v = this.inputs[k];
+            v["fx"].disconnect(this);
+        }
+    }
+
+    disconnect(fx = undefined, output = undefined, input = undefined, params = true) {
+        if(fx === undefined && output !== undefined) {
+            this.disconnectOutput(output, params);
             return;
         }
+
+        if(fx === undefined) {
+            this.disconnectAll(params);
+            return;
+        }
+
         if(output === undefined) {
-            this.node.disconnect(fx.node);
+            this.disconnectFx(fx, params);
             return;
         }
+
+        if(input === undefined) {
+            this.disconnectOutputFx(fx, output, params);
+            return;
+        }
+
+        this.node.disconnect(fx.node, output, input);
+        this.filterConnections(((v) => v["fx"] == fx && v["idx"] == output && v["input"] == input), (() => false));
     }
 
     copy(copyConnections = false) {
+        let node, fx;
+        if (this.fxtype == "iirfilter") {
+            node = new IIRFilterNode(this.node.context, {feedforward: this.node.feedforward, feedback: this.node.feedback});
+            node.feedforward = this.node.feedforward;
+            node.feedback = this.node.feedback;
+        } else if(this.fxtype == "channelmerger")
+            node = new ChannelMergerNode(this.node.context, {numberOfInputs: this.node.numberOfInputs});
+        else if(this.fxtype == "channelsplitter")
+            node = new ChannelSplitterNode(this.node.context, {numberOfOutputs: this.node.numberOfOutputs});
+        else
+            node = new FX_TYPES[this.fxtype](this.node.context);
 
+        fx = new FX(node);
+
+        fx.node.channelCount = this.node.channelCount;
+        fx.node.channelCountMode = this.node.channelCountMode;
+        fx.node.channelInterpretation = this.node.channelInterpretation;
+
+        for(const v of PARAMS[this.fxtype])
+            if(MODULATIONS[this.fxtype].indexOf(v) == -1)
+                fx.node[v] = this.node[v];
+            else
+                fx.node[v].value = this.node[v].value;
+
+        if(!copyConnections) return fx;
+
+        fx.outputs = [...this.outputs];
+        for(const v of this.outputs)
+            fx.connect(v["fx"], v["idx"], v["input"]);
+        fx.outputParams = [...this.outputParams];
+        for(const v of this.outputParams)
+            fx.connectParam(v["fx"], v["param"], v["idx"]);
+
+        for(const k in this.inputs) {
+            const v = this.inputs[k];
+            v["fx"].connect(fx, v["output"], v["idx"]);
+        }
+        for(const k in this.inputParams) {
+            const v = this.inputs[k];
+            v["fx"].connectParam(fx, v["param"], v["output"]);
+        }
+        return fx;
     }
 }
+
+//import Drawflow from "drawflow";
 
 class FXGraph {
     nodes;
@@ -131,8 +287,8 @@ class FXGraph {
 
     constructor(context, drawflow) {
         this.nodes = {};
-        this.inputNode = new GainNode(context);
-        this.outputNode = new GainNode(context);
+        this.inputNode = new FX(new GainNode(context));
+        this.outputNode = new FX(new GainNode(context));
 
         this.drawflow = drawflow;
         this.AC = context;
@@ -152,65 +308,44 @@ class FXGraph {
             const out = this.getAudioNodeFromId(e.output_id),
                     input = this.getAudioNodeFromId(e.input_id);
             if(out.outputs.includes(e.input_id)) {
-                out.outputs.splice(out.outputs.indexOf(e.input_id), 1);
-                input.inputs.splice(input.inputs.indexOf(e.output_id), 1);
                 out.disconnect(input);
             }
         });
         this.drawflow.on("nodeRemoved", (e) => {
             //XXX recreate connections
-            if(e == this.inputNode.id) {
-                this.inputNode.id = this.drawflow.addNode("input", 0, 1, 0, 0, "", {node: this.inputNode.name}, "Input", false);
+            if(e == this.inputNode.gid) {
+                this.inputNode.gid = this.drawflow.addNode("input", 0, 1, 0, 0, "", {node: this.inputNode.name}, "Input", false);
                 this.inputNode.disconnect();
-                this.inputNode.outputs = [];
                 return;
             }
-            if(e == this.outputNode.id) {
-                this.outputNode.id = this.drawflow.addNode("output", 1, 0, 1000, 0, "", {node: this.outputNode.name}, "Output", false);
-                for(let k in this.nodes) {
-                    const i = this.nodes[k].outputs.indexOf(this.outputNode.id);
-                    if(i != -1) {
-                        this.nodes[k].outputs.splice(i);
-                        return;
-                    }
-                }
+            if(e == this.outputNode.gid) {
+                this.outputNode.gid = this.drawflow.addNode("output", 1, 0, 1000, 0, "", {node: this.outputNode.name}, "Output", false);
+                this.outputNode.disconnectInputs();
                 return;
             }
             for(let k in this.nodes) {
-                if(this.nodes[k].id === e) {
+                if(this.nodes[k].gid === e) {
                     this.deleteNode(this.nodes[k]);
                     return;
                 }
             }
         });
 
-        this.inputNode.name = uidGen(10);
-        this.inputNode.fxtype = "gain";
-        this.inputNode.draw = FX_DRAW['gain'];
-        this.inputNode.inputs = [];
-        this.inputNode.outputs = [];
-
-        this.outputNode.name = uidGen(10);
-        this.outputNode.fxtype = "gain";
-        this.outputNode.draw = FX_DRAW['gain'];
-        this.outputNode.inputs = [];
-        this.outputNode.outputs = [];
-
         this.drawflow.on("nodeSelected", (e) => {
             for(let k in this.nodes) {
-                if(this.nodes[k].id == e) {
+                if(this.nodes[k].gid == e) {
                     openFx(k);
                     return;
                 }
             }
         });
 
-        this.drawflow.on("nodeUnselected", (e) => {
+        this.drawflow.on("nodeUnselected", () => {
             closeFx();
         });
 
-        this.inputNode.id = this.drawflow.addNode("input", 0, 1, 0, 0, "", {node: this.inputNode.name}, "Input", false);
-        this.outputNode.id = this.drawflow.addNode("output", 1, 0, 1000, 0, "", {node: this.outputNode.name}, "Output", false);
+        this.inputNode.gid = this.drawflow.addNode("input", 0, 1, 0, 0, "", {node: this.inputNode.name}, "Input", false);
+        this.outputNode.gid = this.drawflow.addNode("output", 1, 0, 1000, 0, "", {node: this.outputNode.name}, "Output", false);
 
         this.nodes[this.inputNode.name] = this.inputNode;
         this.nodes[this.outputNode.name] = this.outputNode;
@@ -245,24 +380,17 @@ class FXGraph {
     }
 
     addNode(node) {
-        this.nodes[node.name] = node;
-        node.id = this.drawflow.addNode(node.name, 1, 1, 0, 200, "", {node: node.name}, node.fxtype + "<br>" + node.name, false);
-        node.outputs = [];
-        node.inputs = [];
-        return node.id;
+        const fx = new FX(node)
+        this.nodes[fx.name] = fx;
+        fx.gid = this.drawflow.addNode(fx.name, 1, 1, 0, 200, "", {node: fx.name}, fx.label, false);
+        return fx.gid;
     }
 
-    // TODO determine if the object is still referenced through its inputs and delete the connections if so
     deleteNode(name) {
-        if (!(name in nodes)) return false;
-        const node = this.nodes[name];
-        for(let k in node.inputs) {
-            const input = this.getAudioNodeFromId(node.inputs[k]);
-            input.outputs.splice(input.outputs.indexOf(node.id), 1);
-            input.disconnect(node);
-        }
-        this.drawflow.removeNodeId(node.id);
-        node.disconnect();
+        if(!(name in nodes)) return false;
+        const fx = this.nodes[name];
+        fx.disconnectInputs();
+        fx.disconnectAll();
         delete this.nodes[name];
     }
 };
