@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.css">
-    <script src="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.js"></script>
+    <link rel="stylesheet" href="node_modules/drawflow/dist/drawflow.min.css">
+    <script src="node_modules/drawflow/dist/drawflow.min.js"></script>
     <script src="./scripts/FX.js"></script>
     <script src="./scripts/FXUI.js"></script>
     <script src="./scripts/mod.js"></script>
@@ -65,7 +65,7 @@
         <div id="drawflow" width="500px" height="500px" style="border-style: outset; background-color: grey; height: 500px; width: 100%;"></div>
         <p>
             <span id="fxEditor"></span><br>
-            <button onclick="addModulation()">Add modulation</button>
+            <select id="modIn"></select><select id="modOut"></select><select id="modParam"></select><button onclick="addModulation()">Add modulation</button>
         </p>
     </div>
     <table id="mod">

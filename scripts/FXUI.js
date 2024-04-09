@@ -1,3 +1,7 @@
+function round(val, digits) {
+    const p = Math.pow(10, digits);
+    return Math.round(val * p) / p;
+}
 
 function gainChanged(name) {
     if(AC === null) return;
@@ -8,7 +12,7 @@ function gainChanged(name) {
 
 function drawGain() {
     const name = this.name;
-    const val = Math.round(ratioToDB(this.node.gain.value) * 10) / 10;
+    const val = round(ratioToDB(this.node.gain.value), 1);
     return {
         html: '<input type="range" id="fader_' + name + '" min="-40" max="3" step="0.1" value="' + val + '"' +
         'onchange="gainChanged(\'' + name + '\');" onmousemove="gainChanged(\'' + name + '\');"' +
@@ -327,10 +331,10 @@ function updateCompressor() {
     openNode.node.threshold.value = thresh;
 
     get('comattackval_' + name).innerHTML = att;
-    get('comkneeval_' + name).innerHTML = Math.round(knee * 10) / 10;
-    get('comratioval_' + name).innerHTML = Math.round(ratio * 10) / 10;
+    get('comkneeval_' + name).innerHTML = round(knee, 1);
+    get('comratioval_' + name).innerHTML = round(ratio, 1);
     get('comreleaseval_' + name).innerHTML = rel;
-    get('comthresholdval_' + name).innerHTML = Math.round(thresh * 10) / 10;
+    get('comthresholdval_' + name).innerHTML = round(thresh, 1);
 }
 
 function drawCompressorCanvas() {

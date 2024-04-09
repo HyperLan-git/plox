@@ -100,7 +100,7 @@ class FX {
                 break;
             }
         if(this.fxtype === undefined) throw new TypeError("Node given is not a supported type !");
-        if(FX_DRAW.indexOf(this.fxtype) != -1) this.draw = FX_DRAW[this.fxtype];
+        if(this.fxtype in FX_DRAW) this.draw = FX_DRAW[this.fxtype];
         this.label = this.fxtype + "-" + this.name;
     }
 
@@ -109,6 +109,7 @@ class FX {
         fx.inputs[this.name + input] = {fx: this, idx: input, output: output};
 
         this.node.connect(fx.node, output, input);
+        return fx;
     }
 
     connectParam(fx, param, output = 0) {
@@ -275,6 +276,26 @@ class FX {
     }
 }
 
+// copies a list of fx and their connections, returns a dict with keys equal to the corresponding fx' uid
+// This is useful for the monophonic fx graph
+function copyFxs(...fxs) {
+    const res = {};
+    for(const fx of fxs)
+        res[fx.name] = fx.copy();
+
+    for(const fx of fxs) {
+        for(const conn of fx.outputs) {
+            if(conn.fx.name in res)
+                res[fx.name].connect(res[conn.fx.name], conn.idx, conn.input);
+        }
+        for(const conn of fx.outputParams) {
+            if(conn.fx.name in res)
+                res[fx.name].connectParam(res[conn.fx.name], conn.param, conn.idx);
+        }
+    }
+    return res;
+}
+
 //import Drawflow from "drawflow";
 
 class FXGraph {
@@ -299,17 +320,12 @@ class FXGraph {
             const out = this.getAudioNodeFromId(e.output_id),
                     input = this.getAudioNodeFromId(e.input_id);
 
-            input.inputs.push(e.output_id);
-            out.outputs.push(e.input_id);
-
             out.connect(input);
         });
         this.drawflow.on("connectionRemoved", (e) => {
             const out = this.getAudioNodeFromId(e.output_id),
                     input = this.getAudioNodeFromId(e.input_id);
-            if(out.outputs.includes(e.input_id)) {
-                out.disconnect(input);
-            }
+            out.disconnect(input);
         });
         this.drawflow.on("nodeRemoved", (e) => {
             //XXX recreate connections

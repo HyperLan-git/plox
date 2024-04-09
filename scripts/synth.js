@@ -14,9 +14,9 @@ let openNode = null;
 
 const uiChange = .005; // 5ms
 
-let osc1 = null, osc2 = null;
-
-let modulations = [];
+let osc1 = null, adsr = null;
+let osc2 = null, fmfreq = null, fma = null;
+let osc = {};
 
 function get(id) {
     return document.getElementById(id);
@@ -49,7 +49,19 @@ function initAudio() {
         noiseBuf.getChannelData(0)[i] = Math.random() * 2 - 1;
 
     fx = new FXGraph(AC, drawflow);
-    fx.connect(masterFader);
+    fx.getOutput().node.connect(masterFader);
+
+    adsr = new FX(new GainNode(AC));
+    osc1 = new FX(new OscillatorNode(AC));
+    adsr.node.gain.value = 0;
+
+    osc1.connect(adsr);
+
+    osc2 = new FX(new OscillatorNode(AC));
+    fmfreq = new FX(new GainNode(AC));
+    fma = new FX(new GainNode(AC));
+
+    osc2.connect(fmfreq).connect(fma).connectParam(osc1, "frequency");
 }
 
 function addFx(type) {
@@ -124,41 +136,37 @@ function getNoteFreq(midiPitch) {
     return result * Math.pow(SEMITONE_PITCH, midiPitch - 69) * 440;
 }
 
-let osc = {};
 function playOsc(note = 69) {
     if(AC === null) return;
     if(osc[note] !== undefined) return;
 
-    let g = AC.createGain();
-    let o = AC.createOscillator();
+    const nodes = copyFxs(osc1, adsr, osc2, fmfreq, fma);
+    let o = nodes[osc1.name];
+    o.adsr = nodes[adsr.name];
+    o.osc2 = nodes[osc2.name];
+    o.fmfreq = nodes[fmfreq.name];
+    o.fma = nodes[fma.name];
 
-    o.frequency.value = getNoteFreq(note);
-    o.type = get("waveform").value;
-    o.connect(g).connect(fx.getInput());
+    o.node.frequency.value = getNoteFreq(note);
+    o.node.type = get("waveform").value;
+
+    o.adsr.connect(fx.getInput());
 
     const attack = Number(get("attack").value) / 1000,
         decay = Number(get("decay").value) / 1000,
         sustain = Number(get("sustain").value);
-    g.gain.value = 0;
-    g.gain.setTargetAtTime(1, AC.currentTime, attack / 6);
-    g.gain.setTargetAtTime(sustain, AC.currentTime + attack, decay / 6);
-    o.adsr = g;
+    o.adsr.node.gain.setValueAtTime(0, AC.currentTime);
+    o.adsr.node.gain.setTargetAtTime(1, AC.currentTime, attack / 2);
+    o.adsr.node.gain.setTargetAtTime(sustain, AC.currentTime + attack, decay / 2);
 
-    let fm = AC.createOscillator(),
-        fmg = AC.createGain(),
-        fmgm = AC.createGain();
+    o.osc2.node.frequency.value = o.node.frequency.value;
+    o.osc2.node.type = get("waveform2").value;
 
-    fmg.gain.value = o.frequency.value;
-    fmgm.gain.value = get("fm").value / 100;
-    fm.frequency.value = o.frequency.value;
-    fm.type = get("waveform2").value;
-    fm.connect(fmg).connect(fmgm).connect(o.frequency);
-    o.fm = fm;
-    o.fmg = fmg;
-    o.fmgm = fmgm;
+    o.fmfreq.node.gain.value = o.node.frequency.value;
+    o.fma.node.gain.value = get("fm").value / 100;
 
-    fm.start();
-    o.start();
+    o.osc2.node.start();
+    o.node.start();
     osc[note] = o;
 }
 
@@ -167,15 +175,17 @@ function stopOsc(note = 69) {
     const release = Number(get("release").value) / 1000; // s
     const o = osc[note];
     setTimeout(() => {
-        o.fm.stop();
-        o.fm.disconnect();
-        o.fmg.disconnect();
-        o.fmgm.disconnect();
+        o.osc2.node.stop();
+
+        o.osc2.disconnect();
+        o.fmfreq.disconnect();
+        o.fma.disconnect();
         o.adsr.disconnect();
         o.disconnect();
     }, release * 1000);
-    o.adsr.gain.setTargetAtTime(0, AC.currentTime, release / 6);
-    o.stop(AC.currentTime + release);
+    o.adsr.cancelScheduledValues(AC.currentTime);
+    o.adsr.node.gain.setTargetAtTime(-100, AC.currentTime, release / 2);
+    o.node.stop(AC.currentTime + release);
     delete osc[note];
 }
 
@@ -186,7 +196,7 @@ function playNoise() {
     noiseOsc.buffer = noiseBuf;
     noiseOsc.loop = true;
 
-    noiseOsc.connect(fx.getInput());
+    noiseOsc.connect(fx.getInput().node);
 
     noiseOsc.start();
 }
@@ -209,9 +219,8 @@ function updateADSR() {
 function updateFM() {
     if(AC === null) return;
     get('fmval').innerHTML = get("fm").value;
-    for(let k in osc) {
-        osc[k].fmgm.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, .005);
-    }
+    for(const [, o] of Object.entries(osc))
+        o.fma.node.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, uiChange);
 }
 
 // XXX redesign this
