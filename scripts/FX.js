@@ -52,6 +52,10 @@ const MODULATIONS = {
 };
 
 // Code shamelessly stolen from SO
+function valuesOf(o) {
+    return Object.keys(o).map(function(k){return o[k]});
+}
+
 function uidGen(length) {
     let result = '';
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -100,7 +104,7 @@ class FX {
                 break;
             }
         if(this.fxtype === undefined) throw new TypeError("Node given is not a supported type !");
-        if(this.fxtype in FX_DRAW) this.draw = FX_DRAW[this.fxtype];
+        if(this.fxtype in FX_DRAW) this.draw = () => FX_DRAW[this.fxtype](this.name);
         this.label = this.fxtype + "-" + this.name;
     }
 
@@ -128,6 +132,13 @@ class FX {
                 return;
             }
         }
+    }
+
+    isParamConnected(param) {
+        for(const k in this.inputParams) {
+            if(this.inputParams[k].param == param) return true;
+        }
+        return false;
     }
 
     disconnectAll(params = true) {
@@ -253,7 +264,7 @@ class FX {
             if(MODULATIONS[this.fxtype].indexOf(v) == -1)
                 fx.node[v] = this.node[v];
             else
-                fx.node[v].value = this.node[v].value;
+                fx.node[v].value = this.node[v].value; // It is an audioparam
 
         if(!copyConnections) return fx;
 
@@ -276,7 +287,7 @@ class FX {
     }
 }
 
-// copies a list of fx and their connections, returns a dict with keys equal to the corresponding fx' uid
+// Copies a list of fx and their connections, returns a dict with keys equal to the corresponding fx' uid
 // This is useful for the monophonic fx graph
 function copyFxs(...fxs) {
     const res = {};
@@ -300,22 +311,28 @@ function copyFxs(...fxs) {
 
 class FXGraph {
     nodes;
-    inputNode;
+    defaultNodes;
     outputNode;
 
     AC;
     drawflow;
 
-    constructor(context, drawflow) {
+    constructor(context, drawflow, defaultFxs) {
         this.nodes = {};
-        this.inputNode = new FX(new GainNode(context));
+        this.defaultNodes = {};
         this.outputNode = new FX(new GainNode(context));
+        console.log(defaultFxs);
+        for(let n of defaultFxs) {
+            if(this.defaultNodes[n.label] !== undefined) throw new Error("Default fxs must have different labels !");
+            this.defaultNodes[n.label] = n;
+        }
 
         this.drawflow = drawflow;
         this.AC = context;
 
         //this.drawflow = new Drawflow(null);
 
+        //TODO connect the right output
         this.drawflow.on("connectionCreated", (e) => {
             const out = this.getAudioNodeFromId(e.output_id),
                     input = this.getAudioNodeFromId(e.input_id);
@@ -328,16 +345,20 @@ class FXGraph {
             out.disconnect(input);
         });
         this.drawflow.on("nodeRemoved", (e) => {
-            //XXX recreate connections
-            if(e == this.inputNode.gid) {
-                this.inputNode.gid = this.drawflow.addNode("input", 0, 1, 0, 0, "", {node: this.inputNode.name}, "Input", false);
-                this.inputNode.disconnect();
-                return;
-            }
             if(e == this.outputNode.gid) {
                 this.outputNode.gid = this.drawflow.addNode("output", 1, 0, 1000, 0, "", {node: this.outputNode.name}, "Output", false);
                 this.outputNode.disconnectInputs();
                 return;
+            }
+            for(let k in this.defaultNodes) {
+                if(this.defaultNodes[k].gid === e) {
+                    this.defaultNodes[k].gid = 
+                        this.drawflow.addNode(this.defaultNodes[k].name, this.defaultNodes[k].node.numberOfInputs, this.defaultNodes[k].node.numberOfOutputs,
+                                300, 200, "", {node: this.defaultNodes[k].name}, this.defaultNodes[k].label, false);
+                    this.defaultNodes[k].disconnectInputs();
+                    this.defaultNodes[k].disconnect();
+                    return;
+                }
             }
             for(let k in this.nodes) {
                 if(this.nodes[k].gid === e) {
@@ -360,10 +381,27 @@ class FXGraph {
             closeFx();
         });
 
-        this.inputNode.gid = this.drawflow.addNode("input", 0, 1, 0, 0, "", {node: this.inputNode.name}, "Input", false);
-        this.outputNode.gid = this.drawflow.addNode("output", 1, 0, 1000, 0, "", {node: this.outputNode.name}, "Output", false);
+        let y = 0, x = 0;
+        for(let k in this.defaultNodes) {
+            this.defaultNodes[k].gid = this.drawflow.addNode(this.defaultNodes[k].name, this.defaultNodes[k].node.numberOfInputs, this.defaultNodes[k].node.numberOfOutputs,
+                    x * 300, y * 100, "", {node: this.defaultNodes[k].name}, this.defaultNodes[k].label, false);
+            this.nodes[this.defaultNodes[k].name] = this.defaultNodes[k];
+            x++;
+            if(x > 1) {
+                x = 0;
+                y++;
+            }
+        }
+        this.outputNode.gid = this.drawflow.addNode(this.outputNode.name, 1, 0, 1000, 0, "", {node: this.outputNode.name}, "Output", false);
 
-        this.nodes[this.inputNode.name] = this.inputNode;
+        for(let k in this.defaultNodes) {
+            const node = this.defaultNodes[k];
+            for(let k2 in node.outputs) {
+                const conn = node.outputs[k2];
+                this.drawflow.addConnection(node.gid, conn.fx.gid, 'output_1', 'input_1');
+            }
+        }
+
         this.nodes[this.outputNode.name] = this.outputNode;
     }
 
@@ -371,8 +409,8 @@ class FXGraph {
         return this.outputNode.connect(output);
     }
 
-    getInput() {
-        return this.inputNode;
+    connectGraphNode(input, output) {
+        this.drawflow.addConnection(input.gid, output.gid, 'output_1', 'input_1');
     }
 
     getOutput() {
@@ -396,9 +434,9 @@ class FXGraph {
     }
 
     addNode(node) {
-        const fx = new FX(node)
+        const fx = new FX(node);
         this.nodes[fx.name] = fx;
-        fx.gid = this.drawflow.addNode(fx.name, 1, 1, 0, 200, "", {node: fx.name}, fx.label, false);
+        fx.gid = this.drawflow.addNode(fx.name, node.numberOfInputs, node.numberOfOutputs, 0, 200, "", {node: fx.name}, fx.label, false);
         return fx.gid;
     }
 
@@ -409,7 +447,8 @@ class FXGraph {
         fx.disconnectAll();
         delete this.nodes[name];
     }
+
+    getAllNodes() {
+        return valuesOf(this.nodes);
+    }
 };
-/* TODO
-make it easily clonable for multiple voices OR make automated channel splitting and merging when multiple keys are hit
-*/

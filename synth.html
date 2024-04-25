@@ -65,7 +65,7 @@
         <div id="drawflow" width="500px" height="500px" style="border-style: outset; background-color: grey; height: 500px; width: 100%;"></div>
         <p>
             <span id="fxEditor"></span><br>
-            <select id="modIn"></select><select id="modOut"></select><select id="modParam"></select><button onclick="addModulation()">Add modulation</button>
+            <select id="modIn"></select> -> <select id="modOut" onchange="getModUiParams()"></select> Param : <select id="modParam"></select><button onclick="addModulation()">Add modulation</button>
         </p>
     </div>
     <table id="mod">
