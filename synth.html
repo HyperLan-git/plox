@@ -3,10 +3,11 @@
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.css">
-    <script src="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.js"></script>
+    <link rel="stylesheet" href="node_modules/drawflow/dist/drawflow.min.css">
+    <script src="node_modules/drawflow/dist/drawflow.min.js"></script>
     <script src="./scripts/FX.js"></script>
     <script src="./scripts/FXUI.js"></script>
+    <script src="./scripts/mod.js"></script>
     <script src="./scripts/synth.js"></script>
     <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
     <title>HyperLan</title>
@@ -17,24 +18,10 @@
         <p id="synth">
             <button onclick="initAudio(); this.disabled = true;">Enable</button><br>
             Master fader <input type="range" id="fader" min="-40" max="0" step="0.1" value="-40"/><span id="fadervalue">-40 db</span><br>
-            Waveform <select id="waveform">
-                <option value="sine">Sine</option>
-                <option value="triangle">Triangle</option>
-                <option value="square">Square</option>
-                <option value="sawtooth">Sawtooth</option>
-            </select><br>
-            Attack <input type="range" id="attack" min="0" max="4000" step="0.1" value="10" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="attackval">10</span> ms<br>
-            Decay <input type="range" id="decay" min="0" max="4000" step="0.1" value="0" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="decayval">0</span> ms<br>
+            Attack <input type="range" id="attack" min="0" max="4000" step="1" value="10" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="attackval">10</span> ms<br>
+            Decay <input type="range" id="decay" min="0" max="4000" step="1" value="0" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="decayval">0</span> ms<br>
             Sustain <input type="range" id="sustain" min="0" max="1" step="0.01" value="1" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="sustainval">1</span><br>
-            Release <input type="range" id="release" min="0" max="4000" step="0.1" value="25" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="releaseval">25</span> ms<br>
-            Waveform osc 2 (for fm) <select id="waveform2">
-                <option value="sine">Sine</option>
-                <option value="triangle">Triangle</option>
-                <option value="square">Square</option>
-                <option value="sawtooth">Sawtooth</option>
-            </select><br>
-            FM amount (in percentage of frequency) <input type="range" min="0" max="5000" step="10" value="0" id="fm"
-                onchange="updateFM()" onmousemove="updateFM()"></input><span id="fmval">0</span>%<br>
+            Release <input type="range" id="release" min="0" max="4000" step="1" value="25" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="releaseval">25</span> ms<br>
             Octave <input type="number" value="4" id="octave" min="0" max="10" onchange="for(let k in osc) stopOsc(Number(k));"></input>
             <button onmousedown="playOsc(get('octave').value*12+21);" onmouseup="stopOsc(get('octave').value*12+21);" onmouseleave="stopOsc(get('octave').value*12+21);">
                 PLAY</button> (or use the lower row of keyboard)<br>
@@ -46,7 +33,9 @@
         <p>
             New FX
             <select id="fxType">
+                <option value="oscillator">Oscillator</option>
                 <option value="gain">Gain</option>
+                <option value="constant">Constant source</option>
                 <option value="biquadfilter">FIR Filter</option>
                 <!-- XXX <option value="filter">IIR Filter</option>-->
                 <option value="distortion">Distortion</option>
@@ -54,8 +43,8 @@
                 <option value="delay">Delay</option>
                 <option value="compressor">Compressor</option>
                 <option value="stereopanner">Panner</option>
-                <option value="channelmerger">Channel merger</option>
-                <option value="channelsplitter">Channel splitter</option>
+                <!--<option value="channelmerger">Channel merger</option>
+                <option value="channelsplitter">Channel splitter</option>-->
                 <option value="analyser">Frequency analyser/Oscilloscope</option><!-- XXX add loudness analyser? -->
                 <!-- XXX <option value="stereo">Stereo field analyser</option>-->
             </select>
@@ -63,7 +52,24 @@
         </p>
         <div id="drawflow" width="500px" height="500px" style="border-style: outset; background-color: grey; height: 500px; width: 100%;"></div>
         <p>
-            <span id="fxEditor"></span>
+            <span id="fxEditor"></span><br>
+            <select id="modIn"></select> -> <select id="modOut" onchange="getModUiParams()"></select> Param : <select id="modParam"></select><button onclick="addModulation()">Add modulation</button>
         </p>
     </div>
+    <table id="mod">
+        <caption>Modulation matrix</caption>
+        <colgroup>
+            <col span="1" style="width: 10%;">
+            <col span="1" style="width: 10%;">
+            <col span="1" style="width: 20%;">
+            <col span="1" style="width: 40%;">
+            <col span="1" style="width: 20%;">
+         </colgroup>
+        <th>Label</th>
+        <th>Input</th>
+        <th>Output</th>
+        <th>Amount</th>
+        <th>Delete</th>
+        <tbody id="modList"></tbody>
+    </table>
 </body>

@@ -7,12 +7,14 @@ let masterFader = new GainNode(AC),
     masterOscilloscope = new AnalyserNode(AC),
     masterFFTAnalyser = new AnalyserNode(AC);
 
-let noiseOsc = null;
-let noiseBuf = null;
-
 let openNode = null;
 
-const uiChange = .005;
+const uiChange = .005; // 5ms
+
+let constantSource = null, freqConstant = null, adsrConstant = null;
+let osc1 = null, adsr = null;
+let osc2 = null, fmfreq = null;
+let osc = {};
 
 function get(id) {
     return document.getElementById(id);
@@ -23,17 +25,11 @@ function getMousePos(canvas, e) {
     return {x: e.clientX - rect.left, y: e.clientY - rect.top};
 }
 
-// Code shamelessly stolen from SO
-function uidGen(length) {
-    let result = '';
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    const charactersLength = characters.length;
-    let counter = 0;
-    while (counter < length) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
-      counter++;
-    }
-    return result;
+function getAudioNode(name) {
+    if(AC == null) return null;
+    const mod = getModulationNodes();
+    for(let k in mod) if(mod[k].name == name) return mod[k];
+    return fx.getAudioNode(name);
 }
 
 function initAudio() {
@@ -51,59 +47,81 @@ function initAudio() {
 
     masterFader.connect(masterLimiter).connect(masterFFTAnalyser).connect(masterOscilloscope).connect(AC.destination);
 
-    noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+    adsr = new FX(new GainNode(AC));
+    osc1 = new FX(new OscillatorNode(AC));
+    adsr.node.gain.value = 0;
 
-    // White noise for now
-    for(let i = 0; i < noiseBuf.length; i++)
-        noiseBuf.getChannelData(0)[i] = Math.random() * 2 - 1;
+    osc1.node.frequency.value = 0;
+    osc1.connect(adsr);
 
-    fx = new FXGraph(AC, drawflow);
-    fx.connect(masterFader);
+    osc2 = new FX(new OscillatorNode(AC));
+    fmfreq = new FX(new GainNode(AC));
+
+    osc2.node.frequency.value = 0;
+    osc2.connect(fmfreq);
+
+    constantSource = new FX(new ConstantSourceNode(AC));
+    constantSource.node.start();
+
+    freqConstant = new FX(new ConstantSourceNode(AC));
+    freqConstant.node.offset.setValueAtTime(0, AC.currentTime);
+    freqConstant.node.start();
+
+    adsrConstant = new FX(new ConstantSourceNode(AC));
+    adsrConstant.node.offset.setValueAtTime(0, AC.currentTime);
+    adsrConstant.node.start();
+
+    osc1.label = "osc1";
+    osc2.label = "osc2";
+    adsr.label = "adsrGain"
+    constantSource.label = "unit";
+    freqConstant.label = "freq";
+    adsrConstant.label = "env1";
+    fmfreq.label = "fmcontrol";
+
+    addMod(freqConstant, osc1, "frequency", "osc1_freq");
+    addMod(freqConstant, osc2, "frequency", "osc2_freq");
+    addMod(adsrConstant, adsr, "gain", "envelope1");
+    addMod(freqConstant, fmfreq, "gain", "osc2_fm_amp");
+    addMod(fmfreq, osc1, "frequency", "osc2_to_osc1_fm");
+
+    fx = new FXGraph(AC, drawflow,
+        [osc1, adsr,
+        freqConstant, adsrConstant,
+        osc2, fmfreq,
+        constantSource]);
+    fx.outputNode.label = "output_gain";
+
+    adsr.connect(fx.getOutput());
+    fx.connectGraphNode(adsr, fx.getOutput());
+    fx.getOutput().node.connect(masterFader);
+    updateModUI(fx.getAllNodes());
 }
 
 function addFx(type) {
-    const FX_TYPES = {
-        "gain": GainNode,
-        "biquadfilter": BiquadFilterNode,
-        //"filter": IIRFilterNode,
-        "distortion": WaveShaperNode,
-        "convolver": ConvolverNode,
-        "delay": DelayNode,
-        "compressor": DynamicsCompressorNode,
-        "stereopanner": StereoPannerNode,
-        "channelmerger": ChannelMergerNode,
-        "channelsplitter": ChannelSplitterNode,
-        "analyser": AnalyserNode
-    };
     let node = FX_TYPES[type];
     if(node === undefined) return;
 
-    const uid = uidGen(10);
-
-    const obj = new node(AC);
-    obj.name = uid;
-    obj.fxtype = type;
-    if(type in FX_DRAW) obj.draw = FX_DRAW[type];
-
-    fx.addNode(obj);
+    fx.addNode(new node(AC));
+    updateModUI(fx.getAllNodes());
 }
 
 function deleteFx(name) {
     if(AC === null) return;
 
     fx.deleteNode(name);
+    updateModUI(fx.getAllNodes());
 }
 
 function openFx(name) {
-    openNode = null;
-
     openNode = fx.getAudioNode(name);
     if(openNode === null) return;
 
     get('fxEditor').innerHTML = '';
-    if('draw' in openNode) {
-        const drawn = openNode.draw();
-        get('fxEditor').innerHTML = drawn['html'];
+    if(openNode.fxtype in FX_DRAW) {
+        const drawn = openNode['draw']();
+        const editName = "<input type='text' id='label_" + name + "' value='" + openNode.label + "'></input>";
+        get('fxEditor').innerHTML = editName + "<br>" + drawn['html'];
         if(drawn['canvas'] !== undefined) setTimeout(() => drawn['canvas'](), 1);
     }
     get('fxEditor').innerHTML += '<br>';
@@ -155,77 +173,52 @@ function getNoteFreq(midiPitch) {
     return result * Math.pow(SEMITONE_PITCH, midiPitch - 69) * 440;
 }
 
-let osc = {};
 function playOsc(note = 69) {
     if(AC === null) return;
     if(osc[note] !== undefined) return;
 
-    let g = AC.createGain();
-    let o = AC.createOscillator();
-
-    o.frequency.value = getNoteFreq(note);
-    o.type = get("waveform").value;
-    o.connect(g).connect(fx.getInput());
+    const nodes = copyFxs(fx.getAllNodes().concat(getModulationNodes()));
 
     const attack = Number(get("attack").value) / 1000,
         decay = Number(get("decay").value) / 1000,
         sustain = Number(get("sustain").value);
-    g.gain.value = 0;
-    g.gain.setTargetAtTime(1, AC.currentTime, attack / 6);
-    g.gain.setTargetAtTime(sustain, AC.currentTime + attack, decay / 6);
-    o.adsr = g;
+    nodes[adsrConstant.name].node.offset.setValueAtTime(0, AC.currentTime);
+    nodes[adsrConstant.name].node.offset.setTargetAtTime(1, AC.currentTime, attack / 5);
+    nodes[adsrConstant.name].node.offset.setTargetAtTime(sustain, AC.currentTime + attack, decay / 5);
 
-    let fm = AC.createOscillator(),
-        fmg = AC.createGain(),
-        fmgm = AC.createGain();
+    nodes[freqConstant.name].node.offset.value = getNoteFreq(note);
 
-    fmg.gain.value = o.frequency.value;
-    fmgm.gain.value = get("fm").value / 100;
-    fm.frequency.value = o.frequency.value;
-    fm.type = get("waveform2").value;
-    fm.connect(fmg).connect(fmgm).connect(o.frequency);
-    o.fm = fm;
-    o.fmg = fmg;
-    o.fmgm = fmgm;
+    const time = AC.currentTime;
+    for(let k in nodes) {
+        if(nodes[k].fxtype == 'oscillator') nodes[k].node.start(time);
+        if(nodes[k].fxtype == 'constant') nodes[k].node.start(time);
+    }
 
-    fm.start();
-    o.start();
-    osc[note] = o;
+    //o.osc2.node.frequency.value = o.node.frequency.value;
+    //o.osc2.node.type = get("waveform2").value;
+
+    //o.fmfreq.node.gain.value = o.node.frequency.value;
+
+    nodes[fx.getOutput().name].node.connect(masterFader);
+
+    osc[note] = nodes;
 }
 
 function stopOsc(note = 69) {
     if(osc[note] === undefined) return;
     const release = Number(get("release").value) / 1000; // s
-    const o = osc[note];
+    const nodes = osc[note];
     setTimeout(() => {
-        o.fm.stop();
-        o.fm.disconnect();
-        o.fmg.disconnect();
-        o.fmgm.disconnect();
-        o.adsr.disconnect();
-        o.disconnect();
+        for(let k in nodes) {
+            nodes[k].disconnect();
+        }
     }, release * 1000);
-    o.adsr.gain.setTargetAtTime(0, AC.currentTime, release / 6);
-    o.stop(AC.currentTime + release);
+    osc[note][adsrConstant.name].node.offset.cancelScheduledValues(AC.currentTime);
+    osc[note][adsrConstant.name].node.offset.setTargetAtTime(0, AC.currentTime, release / 5);
+    for(let k in osc[note]) {
+        if(osc[note][k].fxtype == 'oscillator') nodes[k].node.stop(AC.currentTime + release);
+    }
     delete osc[note];
-}
-
-function playNoise() {
-    if(AC === null) return;
-    if(noiseOsc !== null) return;
-    noiseOsc = AC.createBufferSource();
-    noiseOsc.buffer = noiseBuf;
-    noiseOsc.loop = true;
-
-    noiseOsc.connect(fx.getInput());
-
-    noiseOsc.start();
-}
-
-function stopNoise() {
-    if(noiseOsc === null) return;
-    noiseOsc.stop();
-    noiseOsc = null;
 }
 
 function updateADSR() {
@@ -237,15 +230,15 @@ function updateADSR() {
     get("releaseval").innerHTML = get("release").value;
 }
 
+// XXX delete this
 function updateFM() {
     if(AC === null) return;
     get('fmval').innerHTML = get("fm").value;
-    for(let k in osc) {
-        osc[k].fmgm.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, .005);
-    }
+    /*for(const [, nodes] of Object.entries(osc))
+        nodes[osc1.name].fma.node.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, uiChange);*/
 }
 
-// XXX redesign this
+// XXX remove this
 async function mainloop() {
     setTimeout(mainloop, 1/20);
 
@@ -344,15 +337,11 @@ window.onload = () => {
     window.addEventListener("keydown", function(e) {
         if(KEYS.indexOf(e.key) !== -1)
             playOsc(KEY_START + KEYS.indexOf(e.key) + get("octave").value*12);
-        if(e.key === ' ')
-            playNoise();
     });
 
     window.addEventListener("keyup", function(e) {
         if(KEYS.indexOf(e.key) !== -1)
             stopOsc(KEY_START + KEYS.indexOf(e.key) + get("octave").value*12);
-        if(e.key === ' ')
-            stopNoise();
     });
 
     mainloop();

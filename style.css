@@ -122,7 +122,7 @@ body>div {
 table {
     background: rgb(206, 202, 145);
     border-radius: 20px;
-    text-align: center;
+    /*text-align: center;*/
 }
 
 canvas {
