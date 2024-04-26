@@ -7,17 +7,13 @@ let masterFader = new GainNode(AC),
     masterOscilloscope = new AnalyserNode(AC),
     masterFFTAnalyser = new AnalyserNode(AC);
 
-let noiseOsc = null;
-let noiseBuf = null;
-
 let openNode = null;
 
 const uiChange = .005; // 5ms
 
 let constantSource = null, freqConstant = null, adsrConstant = null;
 let osc1 = null, adsr = null;
-let osc2 = null, fmfreq = null, fma = null;
-let defaultNodes = [];
+let osc2 = null, fmfreq = null;
 let osc = {};
 
 function get(id) {
@@ -31,9 +27,8 @@ function getMousePos(canvas, e) {
 
 function getAudioNode(name) {
     if(AC == null) return null;
-    for(let k in defaultNodes) {
-        if(defaultNodes[k].name == name) return defaultNodes[k];
-    }
+    const mod = getModulationNodes();
+    for(let k in mod) if(mod[k].name == name) return mod[k];
     return fx.getAudioNode(name);
 }
 
@@ -52,23 +47,18 @@ function initAudio() {
 
     masterFader.connect(masterLimiter).connect(masterFFTAnalyser).connect(masterOscilloscope).connect(AC.destination);
 
-    noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
-
-    // White noise for now
-    for(let i = 0; i < noiseBuf.length; i++)
-        noiseBuf.getChannelData(0)[i] = Math.random() * 2 - 1;
-
     adsr = new FX(new GainNode(AC));
     osc1 = new FX(new OscillatorNode(AC));
     adsr.node.gain.value = 0;
 
+    osc1.node.frequency.value = 0;
     osc1.connect(adsr);
 
     osc2 = new FX(new OscillatorNode(AC));
     fmfreq = new FX(new GainNode(AC));
-    fma = new FX(new GainNode(AC));
 
-    osc2.connect(fmfreq).connect(fma).connectParam(osc1, "frequency");
+    osc2.node.frequency.value = 0;
+    osc2.connect(fmfreq);
 
     constantSource = new FX(new ConstantSourceNode(AC));
     constantSource.node.start();
@@ -87,12 +77,25 @@ function initAudio() {
     constantSource.label = "unit";
     freqConstant.label = "freq";
     adsrConstant.label = "env1";
+    fmfreq.label = "fmcontrol";
 
-    fx = new FXGraph(AC, drawflow, [osc1, adsr, freqConstant, constantSource, adsrConstant]);
+    addMod(freqConstant, osc1, "frequency", "osc1_freq");
+    addMod(freqConstant, osc2, "frequency", "osc2_freq");
+    addMod(adsrConstant, adsr, "gain", "envelope1");
+    addMod(freqConstant, fmfreq, "gain", "osc2_fm_amp");
+    addMod(fmfreq, osc1, "frequency", "osc2_to_osc1_fm");
+
+    fx = new FXGraph(AC, drawflow,
+        [osc1, adsr,
+        freqConstant, adsrConstant,
+        osc2, fmfreq,
+        constantSource]);
+    fx.outputNode.label = "output_gain";
+
     adsr.connect(fx.getOutput());
     fx.connectGraphNode(adsr, fx.getOutput());
     fx.getOutput().node.connect(masterFader);
-    updateModUI();
+    updateModUI(fx.getAllNodes());
 }
 
 function addFx(type) {
@@ -100,14 +103,14 @@ function addFx(type) {
     if(node === undefined) return;
 
     fx.addNode(new node(AC));
-    updateModUI();
+    updateModUI(fx.getAllNodes());
 }
 
 function deleteFx(name) {
     if(AC === null) return;
 
     fx.deleteNode(name);
-    updateModUI();
+    updateModUI(fx.getAllNodes());
 }
 
 function openFx(name) {
@@ -116,8 +119,9 @@ function openFx(name) {
 
     get('fxEditor').innerHTML = '';
     if(openNode.fxtype in FX_DRAW) {
-        const drawn = openNode.draw();
-        get('fxEditor').innerHTML = drawn['html'];
+        const drawn = openNode['draw']();
+        const editName = "<input type='text' id='label_" + name + "' value='" + openNode.label + "'></input>";
+        get('fxEditor').innerHTML = editName + "<br>" + drawn['html'];
         if(drawn['canvas'] !== undefined) setTimeout(() => drawn['canvas'](), 1);
     }
     get('fxEditor').innerHTML += '<br>';
@@ -173,73 +177,48 @@ function playOsc(note = 69) {
     if(AC === null) return;
     if(osc[note] !== undefined) return;
 
-    const nodes = copyFxs(osc1, adsr, osc2, fmfreq, fma, fx.getOutput());
-    let o = nodes[osc1.name];
-    o.adsr = nodes[adsr.name];
-    o.osc2 = nodes[osc2.name];
-    o.fmfreq = nodes[fmfreq.name];
-    o.fma = nodes[fma.name];
-    o.output = nodes[fx.getOutput().name];
-
-    o.node.frequency.value = getNoteFreq(note);
-    o.node.type = get("waveform").value;
+    const nodes = copyFxs(fx.getAllNodes().concat(getModulationNodes()));
 
     const attack = Number(get("attack").value) / 1000,
         decay = Number(get("decay").value) / 1000,
         sustain = Number(get("sustain").value);
-    o.adsr.node.gain.setValueAtTime(0, AC.currentTime);
-    o.adsr.node.gain.setTargetAtTime(1, AC.currentTime, attack / 5);
-    o.adsr.node.gain.setTargetAtTime(sustain, AC.currentTime + attack, decay / 5);
+    nodes[adsrConstant.name].node.offset.setValueAtTime(0, AC.currentTime);
+    nodes[adsrConstant.name].node.offset.setTargetAtTime(1, AC.currentTime, attack / 5);
+    nodes[adsrConstant.name].node.offset.setTargetAtTime(sustain, AC.currentTime + attack, decay / 5);
 
-    o.osc2.node.frequency.value = o.node.frequency.value;
-    o.osc2.node.type = get("waveform2").value;
+    nodes[freqConstant.name].node.offset.value = getNoteFreq(note);
 
-    o.fmfreq.node.gain.value = o.node.frequency.value;
-    o.fma.node.gain.value = get("fm").value / 100;
+    const time = AC.currentTime;
+    for(let k in nodes) {
+        if(nodes[k].fxtype == 'oscillator') nodes[k].node.start(time);
+        if(nodes[k].fxtype == 'constant') nodes[k].node.start(time);
+    }
 
-    o.output.node.connect(masterFader);
+    //o.osc2.node.frequency.value = o.node.frequency.value;
+    //o.osc2.node.type = get("waveform2").value;
 
-    o.osc2.node.start();
-    o.node.start();
-    osc[note] = o;
+    //o.fmfreq.node.gain.value = o.node.frequency.value;
+
+    nodes[fx.getOutput().name].node.connect(masterFader);
+
+    osc[note] = nodes;
 }
 
 function stopOsc(note = 69) {
     if(osc[note] === undefined) return;
     const release = Number(get("release").value) / 1000; // s
-    const o = osc[note];
+    const nodes = osc[note];
     setTimeout(() => {
-        o.osc2.node.stop();
-
-        o.osc2.disconnect();
-        o.fmfreq.disconnect();
-        o.fma.disconnect();
-        o.adsr.disconnect();
-        o.output.disconnect();
-        o.disconnect();
+        for(let k in nodes) {
+            nodes[k].disconnect();
+        }
     }, release * 1000);
-    o.adsr.node.gain.cancelScheduledValues(AC.currentTime);
-    o.adsr.node.gain.setTargetAtTime(0, AC.currentTime, release / 5);
-    o.node.stop(AC.currentTime + release);
+    osc[note][adsrConstant.name].node.offset.cancelScheduledValues(AC.currentTime);
+    osc[note][adsrConstant.name].node.offset.setTargetAtTime(0, AC.currentTime, release / 5);
+    for(let k in osc[note]) {
+        if(osc[note][k].fxtype == 'oscillator') nodes[k].node.stop(AC.currentTime + release);
+    }
     delete osc[note];
-}
-
-function playNoise() {
-    if(AC === null) return;
-    if(noiseOsc !== null) return;
-    noiseOsc = AC.createBufferSource();
-    noiseOsc.buffer = noiseBuf;
-    noiseOsc.loop = true;
-
-    noiseOsc.connect(fx.getInput().node);
-
-    noiseOsc.start();
-}
-
-function stopNoise() {
-    if(noiseOsc === null) return;
-    noiseOsc.stop();
-    noiseOsc = null;
 }
 
 function updateADSR() {
@@ -251,11 +230,12 @@ function updateADSR() {
     get("releaseval").innerHTML = get("release").value;
 }
 
+// XXX delete this
 function updateFM() {
     if(AC === null) return;
     get('fmval').innerHTML = get("fm").value;
-    for(const [, o] of Object.entries(osc))
-        o.fma.node.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, uiChange);
+    /*for(const [, nodes] of Object.entries(osc))
+        nodes[osc1.name].fma.node.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, uiChange);*/
 }
 
 // XXX remove this
@@ -279,7 +259,7 @@ async function mainloop() {
         masterOscilloscope.getFloatTimeDomainData(arr);
 
         ctx.lineWidth = 2;
-        ctx.strokeStyle = "dark yellow";
+        ctx.strokeStyle = "yellow";
         ctx.beginPath();
         ctx.moveTo(1, arr[1] * hh + hh);
         for(let i = 1; i < ww; i++)
@@ -357,15 +337,11 @@ window.onload = () => {
     window.addEventListener("keydown", function(e) {
         if(KEYS.indexOf(e.key) !== -1)
             playOsc(KEY_START + KEYS.indexOf(e.key) + get("octave").value*12);
-        if(e.key === ' ')
-            playNoise();
     });
 
     window.addEventListener("keyup", function(e) {
         if(KEYS.indexOf(e.key) !== -1)
             stopOsc(KEY_START + KEYS.indexOf(e.key) + get("octave").value*12);
-        if(e.key === ' ')
-            stopNoise();
     });
 
     mainloop();

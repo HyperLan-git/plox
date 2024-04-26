@@ -1,112 +1,77 @@
 let modulations = {};
 
+function getModulationNodes() {
+    return Object.values(modulations).map((e) => e.amount);
+}
+
 function addModulation() {
     const inName = get("modIn").value;
-    let inNode = null;
-    switch(inName) {
-        case osc1.name:
-            inNode = osc1;
-            break;
-        case osc2.name:
-            inNode = osc2;
-            break;
-        case constantSource.name:
-            inNode = constantSource;
-            break;
-        case freqConstant.name:
-            inNode = freqConstant;
-            break;
-        default:
-            inNode = fx.getAudioNode(inName);
-            break;
-    }
+    let inNode = fx.getAudioNode(inName);
 
     const outName = get("modOut").value;
-    let outNode = null;
-    switch(outName) {
-        case osc1.name:
-            outNode = osc1;
-            break;
-        case osc2.name:
-            outNode = osc2;
-            break;
-        case fx.getOutput().name:
-            outNode = fx.getOutput();
-            break;
-        default:
-            outNode = fx.getAudioNode(outName);
-            break;
-    }
+    let outNode = fx.getAudioNode(outName);
 
     const param = get("modParam").value;
     if(inNode == null || outNode == null || !(MODULATIONS[outNode.fxtype].includes(param))) return;
-    const row = get("mod").insertRow();
+    return addMod(inNode, outNode, param);
+}
+
+function addMod(inNode, outNode, param, label = null) {
     const uid = uidGen(20);
+    const row = get("mod").insertRow();
     const amount = new FX(new GainNode(AC));
-    amount.label = "mod_" + uid;
+    amount.label = (label == null ? "mod_" + uid : label);
     modulations[uid] = {
         param: param,
         in: inNode,
         out: outNode,
         amount: amount
     };
+    const upd = "onchange='updateModAmount(\"" + uid + "\")'" + "onmousemove='updateModAmount(\"" + uid + "\")'"
+    const minCtr = "&nbsp;<input type='number' value='-1' style='width:3em' id='mod_min_" + uid + "' " + upd + "></input>";
+    const maxCtr = " - <input type='number' value='1' style='width:3em' id='mod_max_" + uid + "' " + upd + "></input>";
     row.id = "mod_" + uid;
+    row.insertCell().innerHTML = amount.label;
     row.insertCell().innerHTML = inNode.label;
-    row.insertCell().innerHTML = outNode.label;
-    row.insertCell().innerHTML = drawParamUI(amount.node.gain.value, "mod_amount_" + uid);
-    row.insertCell().innerHTML = "<button onclick='removeModulation('" + uid + "');'></button>";
+    row.insertCell().innerHTML = outNode.label + " -> " + param;
+    row.insertCell().innerHTML = drawParamUI(amount.node.gain.value, "mod_amount_" + uid, null, "updateModAmount('" + uid + "')", -1, 1, true, .01) + minCtr + maxCtr;
+    row.insertCell().innerHTML = "<button onclick='removeModulation(\"" + uid + "\");'>DELETE</button>";
 
     inNode.connect(amount);
     amount.connectParam(outNode, param);
+    return uid;
 }
 
-function updateModAmount() {
-
+function updateModAmount(id) {
+    get("mod_amount_" + id).min = get("mod_min_" + id).value;
+    get("mod_amount_" + id).max = get("mod_max_" + id).value;
+    modulations[id].amount.node.gain.value = get("mod_amount_" + id).value;
+    get("value_mod_amount_" + id).innerHTML = get("mod_amount_" + id).value;
 }
 
 function removeModulation(id) {
     const mod = modulations[id];
-    mod.in.disconnectParam(mod.out, mod.param);
+    mod.amount.disconnect();
     get("mod").deleteRow(get("mod_" + id).rowIndex);
 
     delete modulations[id];
 }
 
-function listModInputs(fx) {
-    let res = [osc1, osc2, constantSource, freqConstant];
-    return res.concat(fx.getAllNodes());
+function listModulableNodes(nodes) {
+    return nodes.filter((x) => MODULATIONS[x.fxtype].length != 0).concat(getModulationNodes());
 }
 
-function listModulableNodes(fx) {
-    let res = [osc1, osc2, fx.getOutput()];
-    const others = fx.getAllNodes().filter((x) => MODULATIONS[x.fxtype].length != 0);
-    return res.concat(others);
-}
-
-function updateModUI() {
-    get("modIn").innerHTML = listModInputs(fx).map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
-    get("modOut").innerHTML = listModulableNodes(fx).map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
+function updateModUI(nodes) {
+    get("modIn").innerHTML = nodes.map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
+    get("modOut").innerHTML = listModulableNodes(nodes).map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
 
     getModUiParams();
 }
 
 function getModUiParams() {
     const name = get("modOut").value;
-    let node = null;
-    switch(name) {
-        case osc1.name:
-            node = osc1;
-            break;
-        case osc2.name:
-            node = osc2;
-            break;
-        case fx.getOutput().name:
-            node = fx.getOutput();
-            break;
-        default:
-            node = fx.getAudioNode(name);
-            break;
-    }
+    let node = fx.getAudioNode(name);
+
     const type = node.fxtype;
     get("modParam").innerHTML = MODULATIONS[type].map((x) => "<option value='" + x + "'>" + x + "</option>").join("");
 }

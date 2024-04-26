@@ -18,18 +18,14 @@ function drawParamUI(param, id, type, onchange, min, max, enabled, step = 0.1) {
             val = baseVal;
             valText = panToText(val);
             break;
-        case null:
-            valText = "";
-            val = baseVal;
-            break;
         default:
             val = baseVal;
             break;
     }
     if(valText === null) valText = val;
     let str = '<input type="range" id="' + id + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '"' +
-        'onchange="' + onchange + '" onmousemove="' + onchange + '"' + (enabled ? '' : 'disabled') +
-        '/><em id="value_' + id + '">' + valText + '</em> ' + type + '<br>';
+        'onchange="' + onchange + '" onmousemove="' + onchange + '"' +// (enabled ? '' : 'disabled') +
+        '/><em id="value_' + id + '">' + valText + '</em> ' + (type != null ? type : "");
     return str;
 }
 
@@ -41,7 +37,7 @@ function round(val, digits) {
 function gainChanged(name) {
     if(AC === null) return;
     const val = get('fader_' + name).value;
-    get("value_fader_" + name).innerHTML = val;
+    get("value_fader_" + name).innerHTML = round(val, 1);
     getAudioNode(name).node.gain.setTargetAtTime(dbToRatio(val), AC.currentTime, uiChange);
 }
 
@@ -49,13 +45,13 @@ function drawGain(name) {
     const fx = getAudioNode(name);
     if(fx == null) return;
     const val = fx.node.gain.value;
-    return { html: drawParamUI(val, "fader_" + name, 'db', 'gainChanged(\'' + name + '\');', -40, 3, !fx.isParamConnected("gain")) + '<br>' };
+    return { html: drawParamUI(val, "fader_" + name, 'db', 'gainChanged(\'' + name + '\');', -40, 6, !fx.isParamConnected("gain")) + '<br>' };
 }
 
 function delayChanged(name) {
     if(AC === null) return;
     const val = get('delay_' + name).value;
-    get("value_delay_" + name).innerHTML = val;
+    get("value_delay_" + name).innerHTML = round(val, 0);
     getAudioNode(name).node.delayTime.setTargetAtTime(val, AC.currentTime, uiChange);
 }
 
@@ -605,8 +601,8 @@ function drawOscillator(name) {
         '<option value="triangle">Triangle</option>' +
         '<option value="square">Square</option>' +
         '<option value="sawtooth">Sawtooth</option>' +
-        "</select><br>Frequency : " + drawParamUI(fx.node.frequency.value, "oscfreq_" + name, "hz", "updateOscillator('" + name + "')", 20, 20000, !fx.isParamConnected("frequency"), 1) +
-        "<br>Detune : " + drawParamUI(fx.node.detune.value, "oscdetune_" + name, "st", "updateOscillator('" + name + "')", -48, 48, !fx.isParamConnected("detune"), .01)
+        "</select><br>Frequency : " + drawParamUI(fx.node.frequency.value, "oscfreq_" + name, "hz", "updateOscillator('" + name + "')", 0, 20000, !fx.isParamConnected("frequency"), 1) +
+        "<br>Detune : " + drawParamUI(fx.node.detune.value, "oscdetune_" + name, "cent", "updateOscillator('" + name + "')", -200, 200, !fx.isParamConnected("detune"), 1)
     };
 }
 
@@ -624,6 +620,22 @@ function updateOscillator(name) {
     get("value_oscdetune_" + name).innerHTML = fx.node.detune.value;
 }
 
+function drawConstant(name) {
+    const fx = getAudioNode(name);
+    return {
+        html: "Value : " + drawParamUI(fx.node.offset.value, "constoffset_" + name, null, "updateConstant('" + name + "')", 0, 1, !fx.isParamConnected("offset"), .01)
+    };
+}
+
+function updateConstant(name) {
+    if(AC === null) return;
+
+    const fx = getAudioNode(name);
+    if(fx == null) return;
+    fx.node.offset.value = get("constoffset_" + name).value;
+    get("value_constoffset_" + name).innerHTML = fx.node.offset.value;
+}
+
 const FX_DRAW = {
     "gain": drawGain,
     "delay": drawDelay,
@@ -633,5 +645,6 @@ const FX_DRAW = {
     "stereopanner": drawPanner,
     "analyser": drawAnalyser,
     "convolver": drawConvolver,
-    "oscillator": drawOscillator
+    "oscillator": drawOscillator,
+    "constant": drawConstant
 };

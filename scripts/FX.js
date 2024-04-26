@@ -1,3 +1,4 @@
+//TODO implement event listeners for clones of main nodes' params
 const FX_TYPES = {
     "gain": GainNode,
     "biquadfilter": BiquadFilterNode,
@@ -50,6 +51,13 @@ const MODULATIONS = {
     "streamsource": [],
     "constant": ["offset"]
 };
+
+const CONST_NODE_TYPE = [
+    "ENVELOPE",
+    //"RANDOM",
+    "EXT_PARAM",
+    "CONSTANT"
+];
 
 // Code shamelessly stolen from SO
 function valuesOf(o) {
@@ -290,9 +298,13 @@ class FX {
 // Copies a list of fx and their connections, returns a dict with keys equal to the corresponding fx' uid
 // This is useful for the monophonic fx graph
 function copyFxs(...fxs) {
+    // TODO event system for params
     const res = {};
-    for(const fx of fxs)
+    if(fxs.length == 0) return res;
+    if(fxs.length == 1 && fxs[0].constructor === Array) fxs = fxs[0];
+    for(const fx of fxs) {
         res[fx.name] = fx.copy();
+    }
 
     for(const fx of fxs) {
         for(const conn of fx.outputs) {
@@ -321,7 +333,6 @@ class FXGraph {
         this.nodes = {};
         this.defaultNodes = {};
         this.outputNode = new FX(new GainNode(context));
-        console.log(defaultFxs);
         for(let n of defaultFxs) {
             if(this.defaultNodes[n.label] !== undefined) throw new Error("Default fxs must have different labels !");
             this.defaultNodes[n.label] = n;
