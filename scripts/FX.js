@@ -125,7 +125,7 @@ class FX {
     }
 
     connectParam(fx, param, output = 0) {
-        if(MODULATIONS[fx.fxtype].indexOf(param) === -1) throw new TypeError(param + " is not a param of the fx provided !");
+        if(MODULATIONS[fx.fxtype].indexOf(param) === -1) throw new TypeError(param + " is not a param of the fx type " + fx.fxtype + " !");
         this.outputParams.push({fx: fx, param: param, idx: output});
         fx.inputParams[this.name + param + output] = {fx: this, param: param, output: output};
         this.node.connect(fx.node[param], output);

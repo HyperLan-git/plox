@@ -1,4 +1,5 @@
-function drawParamUI(param, id, type, onchange, min, max, enabled, step = 0.1) {
+//XXX please actually get good scales and units
+function drawParamUI(param, id, type, onchange, min, max, step = 0.1) {
     const baseVal = param;
     let val = null;
     let valText = null;
@@ -24,7 +25,7 @@ function drawParamUI(param, id, type, onchange, min, max, enabled, step = 0.1) {
     }
     if(valText === null) valText = val;
     let str = '<input type="range" id="' + id + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '"' +
-        'onchange="' + onchange + '" onmousemove="' + onchange + '"' +// (enabled ? '' : 'disabled') +
+        'onchange="' + onchange + '" onmousemove="' + onchange + '"' +
         '/><em id="value_' + id + '">' + valText + '</em> ' + (type != null ? type : "");
     return str;
 }
@@ -45,13 +46,13 @@ function drawGain(name) {
     const fx = getAudioNode(name);
     if(fx == null) return;
     const val = fx.node.gain.value;
-    return { html: drawParamUI(val, "fader_" + name, 'db', 'gainChanged(\'' + name + '\');', -40, 6, !fx.isParamConnected("gain")) + '<br>' };
+    return { html: drawParamUI(val, "fader_" + name, 'db', 'gainChanged(\'' + name + '\');', -40, 6) + '<br>' };
 }
 
 function delayChanged(name) {
     if(AC === null) return;
     const val = get('delay_' + name).value;
-    get("value_delay_" + name).innerHTML = round(val, 0);
+    get("value_delay_" + name).innerHTML = 1000 * round(val, 3);
     getAudioNode(name).node.delayTime.setTargetAtTime(val, AC.currentTime, uiChange);
 }
 
@@ -59,7 +60,7 @@ function drawDelay(name) {
     const fx = getAudioNode(name);
     const val = round(fx.node.delayTime.value, 3);
     return {
-        html: drawParamUI(val, 'delay_' + name, "ms", "delayChanged('" + name + "')", 0, .5, !fx.isParamConnected("delayTime"), .001) + '<br>'
+        html: drawParamUI(val, 'delay_' + name, "ms", "delayChanged('" + name + "')", 0, .5, .001) + '<br>'
     };
 }
 
@@ -251,7 +252,7 @@ function drawBFilter(name) {
             "<option value='peaking'" + (type == 'peaking' ? 'selected' : '') + ">Peak</option>" +
             "</select> - Freq : <em id='beqfreq_" + name + "'>" + fx.node.frequency.value + "</em> Hz " +
             "- Gain : <em id='beqgain_" + name + "'>" + fx.node.gain.value + "</em> db " +
-            "- Q : " + drawParamUI(fx.node.Q.value, "beqfactor_", "", "updateBFilter('" + name + "')", 0.01, 10, !fx.isParamConnected("Q"), 0.01),
+            "- Q : " + drawParamUI(fx.node.Q.value, "beqfactor_" + name, "", "updateBFilter('" + name + "')", 0.01, 10, 0.01),
         canvas: () => drawBFilterEQ(name)
     };
 }
@@ -329,11 +330,11 @@ function drawCompressor(name) {
     const fx = getAudioNode(name);
     return {
         html: "Current reduction : <canvas id='comgraph_" + name + "' width='70' height='200'></canvas><br>" +
-        "Attack : " + drawParamUI(fx.node.attack.value, "comattack_" + name, "ms", "updateCompressor('" + name + "')", 0, 1, !fx.isParamConnected("attack"), .001) + "<br>" +
-        "Knee : " + drawParamUI(fx.node.knee.value, "comknee_" + name, "", "updateCompressor('" + name + "')", 0, 40, !fx.isParamConnected("knee")) + "<br>" +
-        "Ratio : " + drawParamUI(fx.node.ratio.value, "comratio_" + name, "ratio", "updateCompressor('" + name + "')", 1, 20, !fx.isParamConnected("ratio")) + "<br>" +
-        "Release : " + drawParamUI(fx.node.release.value, "comrelease_" + name, "ms", "updateCompressor('" + name + "')", 0, 1, !fx.isParamConnected("release"), .001) + "<br>" +
-        "Threshold : " + drawParamUI(fx.node.threshold.value, "comthreshold_" + name, "db", "updateCompressor('" + name + "')", -40, 0, !fx.isParamConnected("threshold")) + "<br>",
+        "Attack : " + drawParamUI(fx.node.attack.value, "comattack_" + name, "ms", "updateCompressor('" + name + "')", 0, 1, .001) + "<br>" +
+        "Knee : " + drawParamUI(fx.node.knee.value, "comknee_" + name, "", "updateCompressor('" + name + "')", 0, 40) + "<br>" +
+        "Ratio : " + drawParamUI(fx.node.ratio.value, "comratio_" + name, "ratio", "updateCompressor('" + name + "')", 1, 20) + "<br>" +
+        "Release : " + drawParamUI(fx.node.release.value, "comrelease_" + name, "ms", "updateCompressor('" + name + "')", 0, 1, .001) + "<br>" +
+        "Threshold : " + drawParamUI(fx.node.threshold.value, "comthreshold_" + name, "db", "updateCompressor('" + name + "')", -40, 0) + "<br>",
         canvas: () => { drawCompressorCanvas(name); updateCompressorCanvas(name); }
     };
 }
@@ -425,7 +426,7 @@ function drawPanner(name) {
     const fx = getAudioNode(name);
 
     return {
-        html: "Pan : " + drawParamUI(fx.node.pan.value, "pan_" + name, "panning", "updatePanner('" + name + "')", -1, 1, !fx.isParamConnected("pan"), 0.05)
+        html: "Pan : " + drawParamUI(fx.node.pan.value, "pan_" + name, "panning", "updatePanner('" + name + "')", -1, 1, 0.05)
     };
 }
 
@@ -447,8 +448,8 @@ function drawAnalyser(name) {
         "FFT size : 2^<input onchange='updateAnalyser(\"" + name + "\");' type='number' id='analysersize_" + name + "' min='5' max='15' step='1' value='" + Math.round(Math.log2(fftSize)) + "'></input><br>" +
         "Db range : <input onchange='updateAnalyser(\"" + name + "\");' type='number' id='analysermin_" + name + "' min='-100' max='0' value='" + fx.node.minDecibels + "'></input> - " +
         "<input onchange='updateAnalyser(\"" + name + "\");' type='number' min='-100' max='0' id='analysermax_" + name + "' value='" + fx.node.maxDecibels + "'></input><br>" +
-        "Smoothing " + drawParamUI(fx.node.smoothingTimeConstant, "analysersmooth_" + name, null, "updateAnalyser('" + name + "')", 0, 1, true, 0.01) + "<br>" +
-        "Slope " + drawParamUI(25, "analyserslope_" + name, null, "updateAnalyser('" + name + "')", 0, 50, true, 1),
+        "Smoothing " + drawParamUI(fx.node.smoothingTimeConstant, "analysersmooth_" + name, null, "updateAnalyser('" + name + "')", 0, 1, 0.01) + "<br>" +
+        "Slope " + drawParamUI(25, "analyserslope_" + name, null, "updateAnalyser('" + name + "')", 0, 50, 1),
         canvas: () => { drawAnalyserCanvas(name); updateAnalyserCanvas(name); }
     };
 }
@@ -595,14 +596,16 @@ function updateConvolver(name) {
 
 function drawOscillator(name) {
     const fx = getAudioNode(name);
+    const type = fx.node.type;
     return {
         html: 'Waveform <select onchange="updateOscillator(\'' + name + '\')" id="osctype_' + name + '">' +
         '<option value="sine">Sine</option>' +
         '<option value="triangle">Triangle</option>' +
         '<option value="square">Square</option>' +
         '<option value="sawtooth">Sawtooth</option>' +
-        "</select><br>Frequency : " + drawParamUI(fx.node.frequency.value, "oscfreq_" + name, "hz", "updateOscillator('" + name + "')", 0, 20000, !fx.isParamConnected("frequency"), 1) +
-        "<br>Detune : " + drawParamUI(fx.node.detune.value, "oscdetune_" + name, "cent", "updateOscillator('" + name + "')", -200, 200, !fx.isParamConnected("detune"), 1)
+        //TODO get a fucking logarithmic scale in there
+        "</select><br>Frequency : " + drawParamUI(fx.node.frequency.value, "oscfreq_" + name, "hz", "updateOscillator('" + name + "')", 0, 20000, 1) +
+        "<br>Detune : " + drawParamUI(fx.node.detune.value, "oscdetune_" + name, "cent", "updateOscillator('" + name + "')", -200, 200, 1)
     };
 }
 
@@ -623,7 +626,7 @@ function updateOscillator(name) {
 function drawConstant(name) {
     const fx = getAudioNode(name);
     return {
-        html: "Value : " + drawParamUI(fx.node.offset.value, "constoffset_" + name, null, "updateConstant('" + name + "')", 0, 1, !fx.isParamConnected("offset"), .01)
+        html: "Value : " + drawParamUI(fx.node.offset.value, "constoffset_" + name, null, "updateConstant('" + name + "')", 0, 1, .01)
     };
 }
 
