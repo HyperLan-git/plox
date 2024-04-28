@@ -28,11 +28,12 @@ function addMod(inNode, outNode, param, label = null) {
         out: outNode,
         amount: amount
     };
-    const upd = "onchange='updateModAmount(\"" + uid + "\")'" + "onmousemove='updateModAmount(\"" + uid + "\")'"
+    const upd = "onchange='updateModAmount(\"" + uid + "\")' " + "onmousemove='updateModAmount(\"" + uid + "\")'"
     const minCtr = "&nbsp;<input type='number' value='-1' style='width:3em' id='mod_min_" + uid + "' " + upd + "></input>";
     const maxCtr = " - <input type='number' value='1' style='width:3em' id='mod_max_" + uid + "' " + upd + "></input>";
     row.id = "mod_" + uid;
-    row.insertCell().innerHTML = amount.label;
+    row.insertCell().innerHTML = "<input setNodeLabel(\"" + amount.name + "\", this.value);' value=\"" + amount.label + "\"></input>";
+    //TODO event listener pattern...
     row.insertCell().innerHTML = inNode.label;
     row.insertCell().innerHTML = outNode.label + " -> " + param;
     row.insertCell().innerHTML = drawParamUI(amount.node.gain.value, "mod_amount_" + uid, null, "updateModAmount('" + uid + "')", -1, 1, .01) + minCtr + maxCtr;

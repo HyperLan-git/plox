@@ -636,7 +636,7 @@ function updateConstant(name) {
     const fx = getAudioNode(name);
     if(fx == null) return;
     fx.node.offset.value = get("constoffset_" + name).value;
-    get("value_constoffset_" + name).innerHTML = fx.node.offset.value;
+    get("value_constoffset_" + name).innerHTML = round(fx.node.offset.value, 2);
 }
 
 const FX_DRAW = {

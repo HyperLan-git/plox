@@ -120,12 +120,24 @@ function openFx(name) {
     get('fxEditor').innerHTML = '';
     if(openNode.fxtype in FX_DRAW) {
         const drawn = openNode['draw']();
-        const editName = "<input type='text' id='label_" + name + "' value='" + openNode.label + "'></input>";
+        const editName = "<input type='text' id='label_" + name + "' value='" + openNode.label + "' onchange='setNodeLabel(\"" + name + "\", this.value);'></input>";
         get('fxEditor').innerHTML = editName + "<br>" + drawn['html'];
         if(drawn['canvas'] !== undefined) setTimeout(() => drawn['canvas'](), 1);
     }
     get('fxEditor').innerHTML += '<br>';
     // TODO open channels editor see https://developer.mozilla.org/docs/Web/API/AudioNode
+}
+
+function setNodeLabel(name, label) {
+    let node = getAudioNode(name);
+    if(node === null) return;
+    //TODO update all ui
+    node.label = label;
+    fx.getNode(fx.getNodes(name)[0]).html = label;
+    console.log(fx.getNode(fx.getNodes(name)[0]));
+    updateModUI(fx.getAllNodes());
+    let el = get("graph_" + name);
+    if(el !== undefined) el.innerHTML = label;
 }
 
 function closeFx() {

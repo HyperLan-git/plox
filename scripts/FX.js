@@ -251,6 +251,7 @@ class FX {
 
     copy(copyConnections = false) {
         let node, fx;
+        // For special nodes that have parameters set at creation
         if (this.fxtype == "iirfilter") {
             node = new IIRFilterNode(this.node.context, {feedforward: this.node.feedforward, feedback: this.node.feedback});
             node.feedforward = this.node.feedforward;
@@ -269,7 +270,7 @@ class FX {
         fx.node.channelInterpretation = this.node.channelInterpretation;
 
         for(const v of PARAMS[this.fxtype])
-            if(MODULATIONS[this.fxtype].indexOf(v) == -1)
+            if(MODULATIONS[this.fxtype].indexOf(v) === -1)
                 fx.node[v] = this.node[v];
             else
                 fx.node[v].value = this.node[v].value; // It is an audioparam
@@ -365,7 +366,7 @@ class FXGraph {
                 if(this.defaultNodes[k].gid === e) {
                     this.defaultNodes[k].gid = 
                         this.drawflow.addNode(this.defaultNodes[k].name, this.defaultNodes[k].node.numberOfInputs, this.defaultNodes[k].node.numberOfOutputs,
-                                300, 200, "", {node: this.defaultNodes[k].name}, this.defaultNodes[k].label, false);
+                                300, 200, "", {node: this.defaultNodes[k].name}, "<span id='graph_" + this.defaultNodes[k].name + "'>" + this.defaultNodes[k].label, false);
                     this.defaultNodes[k].disconnectInputs();
                     this.defaultNodes[k].disconnect();
                     return;
@@ -395,7 +396,7 @@ class FXGraph {
         let y = 0, x = 0;
         for(let k in this.defaultNodes) {
             this.defaultNodes[k].gid = this.drawflow.addNode(this.defaultNodes[k].name, this.defaultNodes[k].node.numberOfInputs, this.defaultNodes[k].node.numberOfOutputs,
-                    x * 300, y * 100, "", {node: this.defaultNodes[k].name}, this.defaultNodes[k].label, false);
+                    x * 300, y * 100, "", {node: this.defaultNodes[k].name}, "<span id='graph_" + this.defaultNodes[k].name + "'>" + this.defaultNodes[k].label + "</span>", false);
             this.nodes[this.defaultNodes[k].name] = this.defaultNodes[k];
             x++;
             if(x > 1) {
@@ -447,7 +448,8 @@ class FXGraph {
     addNode(node) {
         const fx = new FX(node);
         this.nodes[fx.name] = fx;
-        fx.gid = this.drawflow.addNode(fx.name, node.numberOfInputs, node.numberOfOutputs, 0, 200, "", {node: fx.name}, fx.label, false);
+        fx.gid = this.drawflow.addNode(fx.name, node.numberOfInputs, node.numberOfOutputs, 0, 200, "", {node: fx.name},
+                                        "<span id='graph_" + fx.name + "'>" + fx.label + "</span>", false);
         return fx.gid;
     }
 
