@@ -393,7 +393,13 @@ function drawCompressorCanvas(name) {
 function updateCompressorCanvas(name) {
     if(AC === null) return;
 
-    const fx = getAudioNode(name);
+    let fx = getAudioNode(name);
+
+    let max = -1;// highest note playing
+    for(let k in osc) {
+        if(max < k) max = k;
+    }
+    if(max != -1) fx = osc[max][name];
     if(fx === null || openNode === null || openNode.name != name) return;
 
     const canvas = get("comgraph_" + name);
@@ -468,7 +474,13 @@ function updateAnalyser(name) {
 
 function drawAnalyserCanvas(name) {
     if(AC === null) return;
-    const fx = getAudioNode(name);
+    let fx = getAudioNode(name);
+
+    let max = -1;// highest note playing
+    for(let k in osc) {
+        if(max < k) max = k;
+    }
+    if(max != -1) fx = osc[max][name];
 
     const canvas = get("analyser_" + name);
     if(canvas === null) return;
@@ -502,7 +514,13 @@ function drawAnalyserCanvas(name) {
 
 function updateAnalyserCanvas(name) {
     if(AC === null) return;
-    const fx = getAudioNode(name);
+    let fx = getAudioNode(name);
+
+    let max = -1;// highest note playing
+    for(let k in osc) {
+        if(max < k) max = k;
+    }
+    if(max != -1) fx = osc[max][name];
     if(fx === null || openNode === null || openNode.name != name) return;
 
     const canvas = get("analyser_" + name);

@@ -25,7 +25,6 @@
             Octave <input type="number" value="4" id="octave" min="0" max="10" onchange="for(let k in osc) stopOsc(Number(k));"></input>
             <button onmousedown="playOsc(get('octave').value*12+21);" onmouseup="stopOsc(get('octave').value*12+21);" onmouseleave="stopOsc(get('octave').value*12+21);">
                 PLAY</button> (or use the lower row of keyboard)<br>
-            <canvas id="oscilloscope" width="1400" height="500"></canvas>
         </p>
     </div>
     <div>
@@ -49,7 +48,7 @@
             </select>
             <button onclick="addFx(get('fxType').value);">ADD</button>
         </p>
-        <div id="drawflow" width="500px" height="500px" style="border-style: outset; background-color: grey; height: 500px; width: 100%;"></div>
+        <div id="drawflow" style="border-style: outset; background-color: grey; height: 500px; width: 99.65%;"></div>
         <p>
             <span id="fxEditor"></span><br>
             <select id="modIn"></select> -> <select id="modOut" onchange="getModUiParams()"></select> Param : <select id="modParam"></select><button onclick="addModulation()">Add modulation</button>
@@ -71,4 +70,9 @@
         <th>Delete</th>
         <tbody id="modList"></tbody>
     </table>
+    <div>
+        <p>
+            <br><canvas id="oscilloscope" width="1400" height="500"></canvas>
+        </p>
+    </div>
 </body>

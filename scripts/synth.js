@@ -131,10 +131,12 @@ function openFx(name) {
 function setNodeLabel(name, label) {
     let node = getAudioNode(name);
     if(node === null) return;
-    //TODO update all ui
+    //TODO update all ui (names in mod matrix)
     node.label = label;
-    fx.getNode(fx.getNodes(name)[0]).html = label;
-    console.log(fx.getNode(fx.getNodes(name)[0]));
+    const graphnode = fx.getNodes(name)[0];
+    if(graphnode != undefined) {
+        fx.getNode(graphnode).html = label;
+    }
     updateModUI(fx.getAllNodes());
     let el = get("graph_" + name);
     if(el !== undefined) el.innerHTML = label;
