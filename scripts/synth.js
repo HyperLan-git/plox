@@ -244,14 +244,6 @@ function updateADSR() {
     get("releaseval").innerHTML = get("release").value;
 }
 
-// XXX delete this
-function updateFM() {
-    if(AC === null) return;
-    get('fmval').innerHTML = get("fm").value;
-    /*for(const [, nodes] of Object.entries(osc))
-        nodes[osc1.name].fma.node.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, uiChange);*/
-}
-
 // XXX remove this
 async function mainloop() {
     setTimeout(mainloop, 1/20);
