@@ -56,6 +56,7 @@
             <button onclick="addFx(get('fxType').value);">ADD</button>
         </p>
         <div id="drawflow" style="border-style: outset; background-color: grey; height: 500px; width: 99.65%;"></div>
+        <div id="drawflow" style="border-style: outset; background-color: grey; height: 500px; width: 99.65%;"></div>
         <p>
             <span id="fxEditor"></span><br>
             <select id="modIn"></select> -> <select id="modOut" onchange="getModUiParams()"></select> Param : <select id="modParam"></select><button onclick="addModulation()">Add modulation</button>
@@ -77,6 +78,11 @@
         <th>Delete</th>
         <tbody id="modList"></tbody>
     </table>
+    <div>
+        <p>
+            <br><canvas id="oscilloscope" width="1400" height="500"></canvas>
+        </p>
+    </div>
     <div>
         <p>
             <br><canvas id="oscilloscope" width="1400" height="500"></canvas>
