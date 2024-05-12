@@ -4,11 +4,18 @@
     <meta charset="utf-8">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="node_modules/drawflow/dist/drawflow.min.css">
-    <script src="node_modules/drawflow/dist/drawflow.min.js"></script>
-    <script src="./scripts/FX.js"></script>
-    <script src="./scripts/FXUI.js"></script>
-    <script src="./scripts/mod.js"></script>
-    <script src="./scripts/synth.js"></script>
+    <script type="importmap">
+        {
+          "imports": {
+            "drawflow": "./built/mod.js"
+          }
+        }
+      </script>
+    <script type="module" src="./node_modules/drawflow/dist/drawflow.min.js"></script>
+    <script src="./built/FX.js" type="module"></script>
+    <script src="./built/FXUI.js" type="module"></script>
+    <script src="./built/mod.js" type="module"></script>
+    <script src="./built/synth.js" type="module"></script>
     <link rel="icon" type="image/x-icon" href="./images/favicon.ico">
     <title>HyperLan</title>
 </head>
@@ -16,7 +23,7 @@
 <body>
     <div>
         <p id="synth">
-            <button onclick="initAudio(); this.disabled = true;">Enable</button><br>
+            <button id="en">Enable</button><br>
             Master fader <input type="range" id="fader" min="-40" max="0" step="0.1" value="-40"/><span id="fadervalue">-40 db</span><br>
             Attack <input type="range" id="attack" min="0" max="4000" step="1" value="10" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="attackval">10</span> ms<br>
             Decay <input type="range" id="decay" min="0" max="4000" step="1" value="0" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="decayval">0</span> ms<br>

@@ -1,5 +1,10 @@
+import Drawflow from 'drawflow';
+
+import { FX_DRAW, closeFx, openFx } from "./FXUI.js";
+import { uidGen, valuesOf } from "./utils.js";
+
 //TODO implement event listeners for clones of main nodes' params
-const FX_TYPES = {
+export const FX_TYPES = {
     "gain": GainNode,
     "biquadfilter": BiquadFilterNode,
     "iirfilter": IIRFilterNode,
@@ -19,7 +24,7 @@ const FX_TYPES = {
     "constant": ConstantSourceNode
 };
 
-const PARAMS = {
+export const PARAMS = {
     "gain": ["gain"],
     "delay": ["delayTime"],
     "distortion": ["curve", "oversample"],
@@ -36,7 +41,7 @@ const PARAMS = {
     "constant": ["offset"]
 };
 
-const MODULATIONS = {
+export const MODULATIONS = {
     "gain": ["gain"],
     "delay": ["delayTime"],
     "distortion": [],
@@ -53,39 +58,27 @@ const MODULATIONS = {
 };
 
 const CONST_NODE_TYPE = [
+    "CONSTANT",
     "ENVELOPE",
     //"RANDOM",
-    "EXT_PARAM",
-    "CONSTANT"
+    "EXT_PARAM"
 ];
-
-// Code shamelessly stolen from SO
-function valuesOf(o) {
-    return Object.keys(o).map(function(k){return o[k]});
-}
-
-function uidGen(length) {
-    let result = '';
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    const charactersLength = characters.length;
-    let counter = 0;
-    while (counter < length) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
-      counter++;
-    }
-    return result;
-}
 
 /**
  * Wrapper for every node in the webapi (why do we have no way to access data about connections?)
  */
-class FX {
+export class FX {
     // internals
     inputs;
     inputParams;
     outputs;
     outputParams;
     node;
+
+    consttype?;
+    constdata?;
+
+    gid?;
 
     // function to draw ui
     draw;
@@ -112,6 +105,10 @@ class FX {
                 break;
             }
         if(this.fxtype === undefined) throw new TypeError("Node given is not a supported type !");
+        if(this.fxtype === "constant") {
+            this.consttype = CONST_NODE_TYPE[0];
+            this.constdata = null;
+        }
         if(this.fxtype in FX_DRAW) this.draw = () => FX_DRAW[this.fxtype](this.name);
         this.label = this.fxtype + "-" + this.name;
     }
@@ -298,7 +295,7 @@ class FX {
 
 // Copies a list of fx and their connections, returns a dict with keys equal to the corresponding fx' uid
 // This is useful for the monophonic fx graph
-function copyFxs(...fxs) {
+export function copyFxs(...fxs) {
     // TODO event system for params
     const res = {};
     if(fxs.length == 0) return res;
@@ -320,17 +317,15 @@ function copyFxs(...fxs) {
     return res;
 }
 
-//import Drawflow from "drawflow";
-
-class FXGraph {
+export class FXGraph {
     nodes;
     defaultNodes;
     outputNode;
 
     AC;
-    drawflow;
+    drawflow: Drawflow;
 
-    constructor(context, drawflow, defaultFxs) {
+    constructor(context, drawflow: Drawflow, defaultFxs) {
         this.nodes = {};
         this.defaultNodes = {};
         this.outputNode = new FX(new GainNode(context));
@@ -341,8 +336,6 @@ class FXGraph {
 
         this.drawflow = drawflow;
         this.AC = context;
-
-        //this.drawflow = new Drawflow(null);
 
         //TODO connect the right output
         this.drawflow.on("connectionCreated", (e) => {
@@ -454,7 +447,7 @@ class FXGraph {
     }
 
     deleteNode(name) {
-        if(!(name in nodes)) return false;
+        if(!(name in this.nodes)) return false;
         const fx = this.nodes[name];
         fx.disconnectInputs();
         fx.disconnectAll();

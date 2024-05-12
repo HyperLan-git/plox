@@ -1,0 +1,651 @@
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import { getI, get, ratioToDB, dbToRatio, getMousePos, logToLinear, getS, linearToLog } from "./utils.js";
+import { noAudio, getAudioNode, getAC, getHighestOsc, getFXGraph } from "./Audio.js";
+export const uiChange = .005; // 5ms
+let openNode = null;
+export function openFx(name) {
+    openNode = getFXGraph().getAudioNode(name);
+    if (openNode === null)
+        return;
+    get('fxEditor').innerHTML = '';
+    if (openNode.fxtype in FX_DRAW) {
+        const drawn = openNode['draw']();
+        const editName = "<input type='text' id='label_" + name + "' value='" + openNode.label + "' onchange='setNodeLabel(\"" + name + "\", this.value);'></input>";
+        get('fxEditor').innerHTML = editName + "<br>" + drawn['html'];
+        if (drawn['canvas'] !== undefined)
+            setTimeout(() => drawn['canvas'](), 1);
+    }
+    get('fxEditor').innerHTML += '<br>';
+    // TODO open channels editor see https://developer.mozilla.org/docs/Web/API/AudioNode
+}
+export function closeFx() {
+    get('fxEditor').innerHTML = '';
+    openNode = null;
+}
+//XXX please actually get good scales and units
+export function drawParamUI(param, id, type, onchange, min, max, step = 0.1) {
+    const baseVal = param;
+    let val = null;
+    let valText = null;
+    switch (type) {
+        case 'db':
+            val = round(ratioToDB(baseVal), 1);
+            if (!isFinite(val))
+                val = min;
+            break;
+        case 'ms':
+            val = 1000 * round(baseVal, 3);
+            break;
+        case "ratio":
+            val = baseVal;
+            valText = "1 : " + val;
+            break;
+        case "panning":
+            val = baseVal;
+            valText = panToText(val);
+            break;
+        default:
+            val = baseVal;
+            break;
+    }
+    if (valText === null)
+        valText = val;
+    let str = '<input type="range" id="' + id + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '"' +
+        'onchange="' + onchange + '" onmousemove="' + onchange + '"' +
+        '/><em id="value_' + id + '">' + valText + '</em> ' + (type !== null && type !== void 0 ? type : "");
+    return str;
+}
+function round(val, digits) {
+    const p = Math.pow(10, digits);
+    return Math.round(val * p) / p;
+}
+function gainChanged(name) {
+    if (noAudio())
+        return;
+    const val = getI('fader_' + name).value;
+    get("value_fader_" + name).innerHTML = String(round(val, 1));
+    getAudioNode(name).node.gain.setTargetAtTime(dbToRatio(val), getAC().currentTime, uiChange);
+}
+function drawGain(name) {
+    const fx = getAudioNode(name);
+    if (fx == null)
+        return;
+    const val = fx.node.gain.value;
+    return { html: drawParamUI(val, "fader_" + name, 'db', 'gainChanged(\'' + name + '\');', -40, 6) + '<br>' };
+}
+function delayChanged(name) {
+    if (noAudio())
+        return;
+    const val = getI('delay_' + name).value;
+    get("value_delay_" + name).innerHTML = String(1000 * round(val, 3));
+    getAudioNode(name).node.delayTime.setTargetAtTime(val, getAC().currentTime, uiChange);
+}
+function drawDelay(name) {
+    const fx = getAudioNode(name);
+    const val = round(fx.node.delayTime.value, 3);
+    return {
+        html: drawParamUI(val, 'delay_' + name, "ms", "delayChanged('" + name + "')", 0, .5, .001) + '<br>'
+    };
+}
+function drawDistortion(name) {
+    return {
+        html: 'Curve <canvas id="waveshaper_' + name + '" width="200" height="200" ' +
+            'onmousedown="updateDistortionCurve(\'' + name + '\', event)" onmousemove="updateDistortionCurve(\'' + name + '\', event);" ' +
+            'onmouseup="updateDistortionCurve(\'' + name + '\', event);"></canvas><br>' +
+            'Symmetrical : <input type="checkbox" id="symmetry_' + name + '" checked></input><br>' +
+            'Presets : <select id="distselect_' + name + '" onchange="setDistortion(\'' + name + '\', this.value);">' +
+            '<option value="" selected disabled hidden>Distortion shape</option>' +
+            '<option value="overdrive">Overdrive</option>' +
+            '<option value="clip">Hard clip</option>' +
+            '<option value="sine">Sine x2</option>' +
+            '<option value="fold">Triangle fold</option>' +
+            '</select><br>' +
+            'Arbitrary function (WARNING : USES EVAL) f(x) -> <input type="text" id="distf_' + name + '" ' +
+            'onchange="distortionFunction(\'' + name + '\', this.value, get(\'distfcount_' + name + '\').value);"></input> ' +
+            'Points : <input type="number" id="distfcount_' + name + '"></input>' +
+            'Oversampling : <select id="oversample_' + name + '" ' +
+            'onchange="distortionChanged(\'' + name + '\');">' +
+            '<option value="none">None</option>' +
+            '<option value="2x">2x</option>' +
+            '<option value="4x">4x</option>' +
+            '</select><br>',
+        canvas: () => updateDistortionCurve(name)
+    };
+}
+function setDistortion(name, preset) {
+    const fx = getAudioNode(name);
+    let arr = null;
+    switch (preset) {
+        case "overdrive":
+            distortionFunction(name, "Math.tanh(Math.PI * x)", 40);
+            break;
+        case "clip":
+            arr = new Float32Array([-1, -1, -1, -1, 0, 1, 1, 1, 1]);
+            fx.node.curve = arr;
+            updateDistortionCurve(name);
+            break;
+        case "sine":
+            distortionFunction(name, "Math.sin(2 * Math.PI * x)", 151);
+            break;
+        case "fold":
+            arr = new Float32Array([0, -1, 0, 1, 0]);
+            fx.node.curve = arr;
+            updateDistortionCurve(name);
+            break;
+        default:
+    }
+}
+function distortionFunction(name, func, n) {
+    const fx = getAudioNode(name);
+    try {
+        let arr = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+            let x = i * 2 / n - 1;
+            arr[i] = eval(func);
+            if (arr[i] > 1)
+                arr[i] = 1;
+            if (arr[i] < -1)
+                arr[i] = -1;
+        }
+        fx.node.curve = arr;
+    }
+    catch (e) {
+        console.log("Your function was invalid : " + e);
+    }
+    updateDistortionCurve(name);
+}
+function distortionChanged(name) {
+    if (noAudio())
+        return;
+    const val = getI('oversample_' + name).value;
+    getAudioNode(name).node.oversample = val;
+}
+let mbuttons = [];
+function createDistortionCurve(name, e, canvas) {
+    const fx = getAudioNode(name);
+    let curve = fx.node.curve;
+    if (curve === null)
+        curve = new Float32Array([-1, 0, 1]);
+    const hh = canvas.height / 2, w = canvas.width;
+    const pos = getMousePos(canvas, e);
+    const idx = Math.round(pos.x / w * (curve.length - 1));
+    const symmetry = getI("symmetry_" + name).checked;
+    switch (e.type) {
+        case "mousemove":
+            if (mbuttons[e.button] && e.button === 0) {
+                curve[idx] = 1 - pos.y / hh;
+                if (symmetry && idx != curve.length / 2 - .5)
+                    curve[curve.length - idx - 1] = -curve[idx];
+                return curve;
+            }
+            return null;
+        case "mousedown":
+            if (e.ctrlKey) {
+                let newArr = null;
+                if (e.button === 0) {
+                    newArr = new Float32Array(curve.length + 1);
+                    newArr[idx] = 1 - (pos.y / hh);
+                    for (let i = 0; i < idx; i++)
+                        newArr[i] = curve[i];
+                    for (let i = idx + 1; i < newArr.length; i++)
+                        newArr[i] = curve[i - 1];
+                    if (symmetry) {
+                        if (idx !== newArr.length / 2 - .5)
+                            newArr[newArr.length - idx - 1] = -newArr[idx];
+                        for (let i = 0; i < newArr.length / 2; i++)
+                            newArr[newArr.length - i - 1] = -newArr[i];
+                    }
+                }
+                else if (e.button === 2) {
+                    newArr = new Float32Array(curve.length - 1);
+                    newArr[idx] = pos.y / hh - 1;
+                    for (let i = 0; i < idx; i++)
+                        newArr[i] = curve[i];
+                    for (let i = idx + 1; i < curve.length; i++)
+                        newArr[i - 1] = curve[i];
+                    if (symmetry) {
+                        for (let i = 0; i < newArr.length / 2; i++)
+                            newArr[newArr.length - i - 1] = -newArr[i];
+                    }
+                }
+                return newArr;
+            }
+            else if (e.button === 0) {
+                mbuttons[e.button] = true;
+                curve[idx] = 1 - pos.y / hh;
+                if (symmetry && idx != curve.length / 2 - .5)
+                    curve[curve.length - idx - 1] = -curve[idx];
+                return curve;
+            }
+            return null;
+        case "mouseup":
+            mbuttons[e.button] = false;
+            return null;
+        default:
+            return null;
+    }
+}
+//TODO this should not handle mouse events
+function updateDistortionCurve(name, e = null) {
+    if (noAudio())
+        return;
+    const fx = getAudioNode(name);
+    const canvas = get("waveshaper_" + name);
+    if (canvas === null)
+        return;
+    const hh = canvas.height / 2, h = canvas.height, w = canvas.width;
+    if (e !== null) {
+        const newArr = createDistortionCurve(name, e, canvas);
+        if (newArr !== null)
+            fx.node.curve = newArr;
+    }
+    let ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+    let curve = fx.node.curve || new Float32Array([-1, 0, 1]);
+    ctx.strokeStyle = "red";
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    const y0 = h - (curve[0] * hh + hh);
+    ctx.moveTo(0, y0);
+    ctx.fillRect(0, y0 - 2, 2, 4);
+    for (let i = 1; i < curve.length; i++) {
+        const x = i * w / (curve.length - 1), y = h - (curve[i] * hh + hh);
+        ctx.fillRect(x - 2, y - 2, 4, 4);
+        ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+}
+function drawBFilter(name) {
+    const fx = getAudioNode(name);
+    const type = fx.node.type;
+    return {
+        html: "Graphical eq <canvas id='beq_" + name + "' width='400' height='300' " +
+            "onmousedown='updateBFilter(\"" + name + "\", event);' onmousemove='updateBFilter(\"" + name + "\", event);' " +
+            "onmouseup='updateBFilter(\"" + name + "\", event);'></canvas><br>" +
+            "Type : <select id='beqtype_" + name + "' onchange='updateBFilter(\"" + name + "\");'>" +
+            "<option value='allpass'" + (type == 'allpass' ? 'selected' : '') + ">All-pass</option>" +
+            "<option value='bandpass'" + (type == 'bandpass' ? 'selected' : '') + ">Band-pass</option>" +
+            "<option value='highpass'" + (type == 'highpass' ? 'selected' : '') + ">High-pass 12db</option>" +
+            "<option value='lowpass'" + (type == 'lowpass' ? 'selected' : '') + ">Low-pass 12db</option>" +
+            "<option value='highshelf'" + (type == 'highshelf' ? 'selected' : '') + ">High-shelf</option>" +
+            "<option value='lowshelf'" + (type == 'lowshelf' ? 'selected' : '') + ">Low-shelf</option>" +
+            "<option value='notch'" + (type == 'notch' ? 'selected' : '') + ">Notch</option>" +
+            "<option value='peaking'" + (type == 'peaking' ? 'selected' : '') + ">Peak</option>" +
+            "</select> - Freq : <em id='beqfreq_" + name + "'>" + fx.node.frequency.value + "</em> Hz " +
+            "- Gain : <em id='beqgain_" + name + "'>" + fx.node.gain.value + "</em> db " +
+            "- Q : " + drawParamUI(fx.node.Q.value, "beqfactor_" + name, "", "updateBFilter('" + name + "')", 0.01, 10, 0.01),
+        canvas: () => drawBFilterEQ(name)
+    };
+}
+function updateBFilter(name, e = null) {
+    if (noAudio())
+        return;
+    const fx = getAudioNode(name);
+    if (e !== null) {
+        const canvas = get("beq_" + name);
+        const h = canvas.height, w = canvas.width;
+        const pos = getMousePos(get("beq_" + name), e);
+        if (e.type === 'mousedown' || (e.type === "mousemove" && mbuttons[0])) {
+            mbuttons[e.button] = true;
+            // One digit after decimal point
+            fx.node.frequency.value = Math.round(10 * (logToLinear(pos.x, 1, w) - 1) / 2 * getAC().sampleRate / w) / 10;
+            fx.node.gain.value = Math.round(-10 * (pos.y / h * 80 - 40)) / 10;
+            get("beqfreq_" + name).innerHTML = String(Math.round(fx.node.frequency.value * 10) / 10);
+            get("beqgain_" + name).innerHTML = String(Math.round(fx.node.gain.value * 10) / 10);
+        }
+        else if (e.type === "mouseup")
+            mbuttons[e.button] = false;
+    }
+    fx.node.Q.value = getI("beqfactor_" + name).value;
+    get("value_beqfactor_" + name).innerHTML = getI("beqfactor_" + name).value;
+    fx.node.type = getS("beqtype_" + name).value;
+    drawBFilterEQ(name);
+}
+function drawBFilterEQ(name) {
+    if (noAudio())
+        return;
+    const fx = getAudioNode(name);
+    const canvas = get("beq_" + name);
+    if (canvas === null)
+        return;
+    const hh = canvas.height / 2, h = canvas.height, w = canvas.width;
+    let ctx = canvas.getContext("2d");
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, w, h);
+    ctx.lineWidth = 3;
+    const points = 400;
+    let freq = new Float32Array(points), mag = new Float32Array(points), phase = new Float32Array(points);
+    for (let i = 0; i < points; i++)
+        freq[i] = (logToLinear(i * w / points, 1, w) - 1) / 2 * getAC().sampleRate / w;
+    fx.node.getFrequencyResponse(freq, mag, phase);
+    ctx.fillStyle = "orange";
+    ctx.strokeStyle = "rgb(151, 98, 0)";
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let i = 0; i < points; i++)
+        ctx.lineTo(i * w / points, hh - (ratioToDB(mag[i]) / 40) * hh);
+    ctx.lineTo(w, h);
+    ctx.stroke();
+    ctx.fill();
+    ctx.fillStyle = "rgba(43, 250, 250, .2)";
+    ctx.strokeStyle = "rgba(0, 0, 250, .2)";
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let i = 0; i < points; i++)
+        ctx.lineTo(i * w / points, phase[i] * hh / Math.PI + hh);
+    ctx.lineTo(w, h);
+    ctx.stroke();
+    ctx.fill();
+}
+function drawCompressor(name) {
+    const fx = getAudioNode(name);
+    return {
+        html: "Current reduction : <canvas id='comgraph_" + name + "' width='70' height='200'></canvas><br>" +
+            "Attack : " + drawParamUI(fx.node.attack.value, "comattack_" + name, "ms", "updateCompressor('" + name + "')", 0, 1, .001) + "<br>" +
+            "Knee : " + drawParamUI(fx.node.knee.value, "comknee_" + name, "", "updateCompressor('" + name + "')", 0, 40) + "<br>" +
+            "Ratio : " + drawParamUI(fx.node.ratio.value, "comratio_" + name, "ratio", "updateCompressor('" + name + "')", 1, 20) + "<br>" +
+            "Release : " + drawParamUI(fx.node.release.value, "comrelease_" + name, "ms", "updateCompressor('" + name + "')", 0, 1, .001) + "<br>" +
+            "Threshold : " + drawParamUI(fx.node.threshold.value, "comthreshold_" + name, "db", "updateCompressor('" + name + "')", -40, 0) + "<br>",
+        canvas: () => { drawCompressorCanvas(name); updateCompressorCanvas(name); }
+    };
+}
+function updateCompressor(name) {
+    if (noAudio())
+        return;
+    const fx = getAudioNode(name);
+    const att = getI('comattack_' + name).value, knee = getI('comknee_' + name).value, ratio = getI('comratio_' + name).value, rel = getI('comrelease_' + name).value, thresh = getI('comthreshold_' + name).value;
+    fx.node.attack.value = att;
+    fx.node.knee.value = knee;
+    fx.node.ratio.value = ratio;
+    fx.node.release.value = rel;
+    fx.node.threshold.value = thresh;
+    get('value_comattack_' + name).innerHTML = String(round(att, 3));
+    get('value_comknee_' + name).innerHTML = String(round(knee, 1));
+    get('value_comratio_' + name).innerHTML = String(round(ratio, 1));
+    get('value_comrelease_' + name).innerHTML = String(round(rel, 3));
+    get('value_comthreshold_' + name).innerHTML = String(round(thresh, 1));
+}
+function drawCompressorCanvas(name) {
+    if (noAudio())
+        return;
+    const canvas = get("comgraph_" + name);
+    if (canvas === null)
+        return;
+    const h = canvas.height, w = canvas.width;
+    let ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "black";
+    ctx.strokeStyle = "black";
+    ctx.fillRect(20, 0, w - 20, h);
+    for (let i = 0; i < 10; i++) {
+        const y = i / 10 * h;
+        ctx.lineWidth = 1;
+        ctx.strokeText("" + i, 5, y + 10);
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(15, y);
+        ctx.lineTo(20, y);
+        ctx.stroke();
+    }
+}
+function updateCompressorCanvas(name) {
+    var _a;
+    if (noAudio())
+        return;
+    let fx = (_a = getHighestOsc(name)) !== null && _a !== void 0 ? _a : getAudioNode(name);
+    if (fx === null)
+        return;
+    const canvas = get("comgraph_" + name);
+    if (canvas === null)
+        return;
+    const h = canvas.height, w = canvas.width;
+    let ctx = canvas.getContext("2d");
+    ctx.clearRect(20, 20, w, h);
+    ctx.fillStyle = "black";
+    ctx.fillRect(20, 0, w - 20, h);
+    const y = -fx.node.reduction / 20 * h;
+    ctx.fillStyle = "green";
+    ctx.fillRect(20, 0, w - 20, y);
+    setTimeout(() => updateCompressorCanvas(name), .2); // 5hz refresh rate
+}
+function panToText(pan) {
+    if (pan == 0)
+        return 'M';
+    if (pan < 0)
+        return Math.round(pan * -100) + '% L';
+    return Math.round(pan * 100) + '% R';
+}
+function drawPanner(name) {
+    if (noAudio())
+        return;
+    const fx = getAudioNode(name);
+    return {
+        html: "Pan : " + drawParamUI(fx.node.pan.value, "pan_" + name, "panning", "updatePanner('" + name + "')", -1, 1, 0.05)
+    };
+}
+function updatePanner(name) {
+    if (noAudio())
+        return;
+    this.node.pan.value = getI('pan_' + name).value;
+    get('value_pan_' + name).innerHTML = panToText(getAudioNode(name).node.pan.value);
+}
+function drawAnalyser(name) {
+    if (noAudio())
+        return;
+    const fx = getAudioNode(name);
+    const fftSize = fx.node.fftSize;
+    return {
+        html: "<canvas id='analyser_" + name + "' width='600' height='450'></canvas>" +
+            "Type : <select id='analysertype_" + name + "' onchange='updateAnalyser(\"" + name + "\");'><option value='fft'>Spectrum</option><option value='oscilloscope'>Oscilloscope</option></select><br>" +
+            "FFT size : 2^<input onchange='updateAnalyser(\"" + name + "\");' type='number' id='analysersize_" + name + "' min='5' max='15' step='1' value='" + Math.round(Math.log2(fftSize)) + "'></input><br>" +
+            "Db range : <input onchange='updateAnalyser(\"" + name + "\");' type='number' id='analysermin_" + name + "' min='-100' max='0' value='" + fx.node.minDecibels + "'></input> - " +
+            "<input onchange='updateAnalyser(\"" + name + "\");' type='number' min='-100' max='0' id='analysermax_" + name + "' value='" + fx.node.maxDecibels + "'></input><br>" +
+            "Smoothing " + drawParamUI(fx.node.smoothingTimeConstant, "analysersmooth_" + name, null, "updateAnalyser('" + name + "')", 0, 1, 0.01) + "<br>" +
+            "Slope " + drawParamUI(25, "analyserslope_" + name, null, "updateAnalyser('" + name + "')", 0, 50, 1),
+        canvas: () => { drawAnalyserCanvas(name); updateAnalyserCanvas(name); }
+    };
+}
+function updateAnalyser(name) {
+    if (noAudio())
+        return;
+    const fx = getAudioNode(name);
+    fx.node.fftSize = Math.pow(2, Number(getI("analysersize_" + name).value));
+    fx.node.minDecibels = getI("analysermin_" + name).value;
+    fx.node.maxDecibels = getI("analysermax_" + name).value;
+    fx.node.smoothingTimeConstant = getI("analysersmooth_" + name).value;
+    get("value_analysersmooth_" + name).innerHTML = fx.node.smoothingTimeConstant;
+    drawAnalyserCanvas(name);
+}
+function drawAnalyserCanvas(name) {
+    var _a;
+    if (noAudio())
+        return;
+    let fx = (_a = getHighestOsc(name)) !== null && _a !== void 0 ? _a : getAudioNode(name);
+    if (fx === null)
+        return;
+    const canvas = get("analyser_" + name);
+    if (canvas === null)
+        return;
+    const h = canvas.height, ww = canvas.width / 2, w = canvas.width;
+    let ctx = canvas.getContext("2d");
+    ctx.clearRect(0, h * .95, w, h);
+    if (getS("analysertype_" + name).value == 'fft') {
+        const HZ_SCALE = [5, 12, 32, 55, 90, 140, 210, 310, 440, 610, 900, 1250, 1700, 2400, 3400, 4800, 6700, 9500, 13500, 19000];
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "black";
+        ctx.strokeText("Hz", ww, h - 12);
+        for (let i = 0; i < 20; i++) {
+            let x = i * w / 20 + 10;
+            ctx.strokeText("" + HZ_SCALE[i], x, h - 2);
+        }
+    }
+    else {
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "black";
+        ctx.strokeText("ms", ww, h - 12);
+        for (let i = 0; i < 20; i++) {
+            let x = i * w / 20 + 10;
+            ctx.strokeText("" + Math.floor(i * (1000 / getAC().sampleRate * fx.node.fftSize)), x, h - 2);
+        }
+    }
+}
+function updateAnalyserCanvas(name) {
+    var _a;
+    if (noAudio())
+        return;
+    let fx = (_a = getHighestOsc(name)) !== null && _a !== void 0 ? _a : getAudioNode(name);
+    if (fx === null)
+        return;
+    const canvas = get("analyser_" + name);
+    if (canvas === null)
+        return;
+    let ctx = canvas.getContext("2d");
+    const hh = canvas.height / 2, h = canvas.height, w = canvas.width;
+    ctx.clearRect(0, 0, w, h * .95);
+    ctx.fillStyle = "grey";
+    ctx.fillRect(0, 0, w, h * .9);
+    const slope = Number(getI('analyserslope_' + name).value);
+    if (getS("analysertype_" + name).value == 'fft') {
+        const arr = new Float32Array(fx.node.frequencyBinCount);
+        const width = w / arr.length;
+        fx.node.getFloatFrequencyData(arr);
+        ctx.fillStyle = "red";
+        for (let i = 0; i < arr.length; i++) {
+            let y = -(arr[i] - fx.node.minDecibels) / (fx.node.maxDecibels - fx.node.minDecibels) * h * .9 + h * .9;
+            let x1 = linearToLog(i * width + 1, 1, w), x2 = linearToLog((i + 1) * width + 1, 1, w);
+            y -= (x1 + x2) / w * h * .9 / (fx.node.maxDecibels - fx.node.minDecibels) * slope; // The higher frequencies' slope
+            if (!isFinite(y) || y >= h * .9)
+                y = h * .9;
+            ctx.fillRect(x1, y, x2 - x1, h * .9 - y);
+        }
+        setTimeout(() => updateAnalyserCanvas(name), 1 / 30); // 30hz refresh rate
+        return;
+    }
+    // else it is an oscilloscope
+    const arr = new Float32Array(fx.node.fftSize);
+    fx.node.getFloatTimeDomainData(arr);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "yellow";
+    ctx.beginPath();
+    let y = arr[0] * hh * .9 + hh * .9;
+    if (y >= h * .9)
+        y = h * .9;
+    ctx.moveTo(0, y);
+    for (let i = 1; i < w; i++) {
+        y = arr[Math.floor(arr.length * i / w)] * hh * .9 + hh * .9;
+        if (y >= h * .9)
+            y = h * .9;
+        ctx.lineTo(i, y);
+    }
+    ctx.stroke();
+    setTimeout(() => updateAnalyserCanvas(name), 1 / 30); // 30hz refresh rate
+}
+function drawConvolver(name) {
+    if (noAudio())
+        return;
+    const fx = getAudioNode(name);
+    return {
+        html: "Convolution : <button onclick='updateConvolverBuffer(\"" + name + "\")'>Choose Impulse Response</button><br>" +
+            "Normalize ? <input onchange='updateConvolver(\"" + name + "\")' type='checkbox' " + (fx.node.normalize ? 'checked' : '') + " id='convnorm_" + name + "'>"
+    };
+}
+function updateConvolverBuffer(name) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (noAudio())
+            return;
+        const fx = getAudioNode(name);
+        if (fx == null)
+            return;
+        const pickerOpts = {
+            types: [
+                {
+                    description: "Audio wav file",
+                    accept: {
+                        "audio/wav": [".wav"],
+                    },
+                },
+            ],
+            excludeAcceptAllOption: true,
+            multiple: false
+        };
+        // XXX fucked up ts thing
+        const contents = yield window.showOpenFilePicker(pickerOpts).then((handle) => {
+            return handle[0].getFile().then((file) => file.arrayBuffer());
+        });
+        fx.node.buffer = yield getAC().decodeAudioData(contents);
+    });
+}
+function updateConvolver(name) {
+    if (noAudio())
+        return;
+    getAudioNode(name).node.normalize = getI("convnorm_" + name).checked;
+}
+function drawOscillator(name) {
+    const fx = getAudioNode(name);
+    const type = fx.node.type;
+    return {
+        html: 'Waveform <select onchange="updateOscillator(\'' + name + '\')" id="osctype_' + name + '">' +
+            '<option value="sine" ' + (type == "sine" ? "selected" : "") + '>Sine</option>' +
+            '<option value="triangle" ' + (type == "triangle" ? "selected" : "") + '>Triangle</option>' +
+            '<option value="square" ' + (type == "square" ? "selected" : "") + '>Square</option>' +
+            '<option value="sawtooth" ' + (type == "sawtooth" ? "selected" : "") + '>Sawtooth</option>' +
+            //TODO get a fucking logarithmic scale in there
+            "</select><br>Frequency : " + drawParamUI(fx.node.frequency.value, "oscfreq_" + name, "hz", "updateOscillator('" + name + "')", 0, 20000, 1) +
+            "<br>Detune : " + drawParamUI(fx.node.detune.value, "oscdetune_" + name, "cent", "updateOscillator('" + name + "')", -200, 200, 1)
+    };
+}
+function updateOscillator(name) {
+    if (noAudio())
+        return;
+    const fx = getAudioNode(name);
+    if (fx == null)
+        return;
+    fx.node.type = getS("osctype_" + name).value;
+    fx.node.frequency.value = getI("oscfreq_" + name).value;
+    fx.node.detune.value = getI("oscdetune_" + name).value;
+    get("value_oscfreq_" + name).innerHTML = fx.node.frequency.value;
+    get("value_oscdetune_" + name).innerHTML = fx.node.detune.value;
+}
+function drawConstant(name) {
+    const fx = getAudioNode(name);
+    return {
+        html: "Type : <select id='consttype_" + name + "' onchange='drawConstantValue(\"" + name + "\")'>" +
+            "<option value='CONSTANT' " + (fx.consttype == "CONSTANT" ? "selected" : "") + ">single value</option>" +
+            "<option value='ENVELOPE' " + (fx.consttype == "ENVELOPE" ? "selected" : "") + ">envelope</option>" +
+            "<option value='EXT_PARAM' " + (fx.consttype == "EXT_PARAM" ? "selected" : "") + ">input parameter</option>" +
+            "</select><br><div id='constvalue_" + name + "'></div>"
+    };
+}
+function drawConstantValue(name) {
+    const fx = getAudioNode(name);
+    get("constvalue_" + name).innerHTML = "Value : " + drawParamUI(fx.node.offset.value, "constoffset_" + name, null, "updateConstant('" + name + "')", 0, 1, .01);
+}
+function updateConstant(name) {
+    if (getAC())
+        return;
+    const fx = getAudioNode(name);
+    if (fx == null)
+        return;
+    fx.node.offset.value = getI("constoffset_" + name).value;
+    get("value_constoffset_" + name).innerHTML = String(round(fx.node.offset.value, 2));
+}
+export const FX_DRAW = {
+    "gain": drawGain,
+    "delay": drawDelay,
+    "distortion": drawDistortion,
+    "biquadfilter": drawBFilter,
+    "compressor": drawCompressor,
+    "stereopanner": drawPanner,
+    "analyser": drawAnalyser,
+    "convolver": drawConvolver,
+    "oscillator": drawOscillator,
+    "constant": drawConstant
+};

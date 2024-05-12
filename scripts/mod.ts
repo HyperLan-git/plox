@@ -1,27 +1,32 @@
+import { getAC, getFXGraph } from "./Audio.js";
+import { FX, MODULATIONS } from "./FX.js";
+import { drawParamUI } from "./FXUI.js";
+import { get, getI, getS } from "./utils.js";
+
 let modulations = {};
 
-function getModulationNodes() {
-    return Object.values(modulations).map((e) => e.amount);
+export function getModulationNodes() {
+    return Object.keys(modulations).map((e) => modulations[e].amount);
 }
 
 function addModulation() {
-    const inName = get("modIn").value;
-    let inNode = fx.getAudioNode(inName);
+    const inName = getS("modIn").value;
+    let inNode = getFXGraph().getAudioNode(inName);
 
-    const outName = get("modOut").value;
-    let outNode = fx.getAudioNode(outName);
+    const outName = getS("modOut").value;
+    let outNode = getFXGraph().getAudioNode(outName);
     if(outNode == null) outNode = modulations[outName].amount;
 
-    const param = get("modParam").value;
+    const param = getS("modParam").value;
     if(inNode == null || outNode == null || !(MODULATIONS[outNode.fxtype].includes(param))) return;
     return addMod(inNode, outNode, param);
 }
 
-function addMod(inNode, outNode, param, label = null) {
-    const row = get("mod").insertRow();
-    const amount = new FX(new GainNode(AC));
+export function addMod(inNode, outNode, param, label = null) {
+    const row = (get("mod") as HTMLTableElement).insertRow();
+    const amount = new FX(new GainNode(getAC()));
     const uid = amount.name;
-    amount.label = (label == null ? "mod_" + uid : label);
+    amount.label = label ?? "mod_" + uid;
     modulations[uid] = {
         param: param,
         in: inNode,
@@ -45,16 +50,16 @@ function addMod(inNode, outNode, param, label = null) {
 }
 
 function updateModAmount(id) {
-    get("mod_amount_" + id).min = get("mod_min_" + id).value;
-    get("mod_amount_" + id).max = get("mod_max_" + id).value;
-    modulations[id].amount.node.gain.value = get("mod_amount_" + id).value;
-    get("value_mod_amount_" + id).innerHTML = get("mod_amount_" + id).value;
+    getI("mod_amount_" + id).min = getI("mod_min_" + id).value;
+    getI("mod_amount_" + id).max = getI("mod_max_" + id).value;
+    modulations[id].amount.node.gain.value = getI("mod_amount_" + id).value;
+    get("value_mod_amount_" + id).innerHTML = getI("mod_amount_" + id).value;
 }
 
 function removeModulation(id) {
     const mod = modulations[id];
     mod.amount.disconnect();
-    get("mod").deleteRow(get("mod_" + id).rowIndex);
+    (get("mod") as HTMLTableElement).deleteRow((get("mod_" + id) as HTMLTableRowElement).rowIndex);
 
     delete modulations[id];
 }
@@ -63,7 +68,7 @@ function listModulableNodes(nodes) {
     return nodes.filter((x) => MODULATIONS[x.fxtype].length != 0).concat(getModulationNodes());
 }
 
-function updateModUI(nodes) {
+export function updateModUI(nodes) {
     get("modIn").innerHTML = nodes.map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
     get("modOut").innerHTML = listModulableNodes(nodes).map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
 
@@ -71,8 +76,8 @@ function updateModUI(nodes) {
 }
 
 function getModUiParams() {
-    const name = get("modOut").value;
-    let node = fx.getAudioNode(name);
+    const name = getI("modOut").value;
+    let node = getFXGraph().getAudioNode(name);
     if(node == null) node = modulations[name].amount;
 
     const type = node.fxtype;

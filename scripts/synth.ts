@@ -1,5 +1,10 @@
 // TODO understand wtf is an audio worklet
-// FIXME turn everything into modules!!!
+import Drawflow from 'drawflow';
+import { getAudioNode } from "./Audio.js";
+import { FX, FXGraph, FX_TYPES, copyFxs } from "./FX.js";
+import { uiChange } from "./FXUI.js";
+import { addMod, getModulationNodes, updateModUI } from "./mod.js";
+import { dbToRatio, get, getI, getNoteFreq, linearToLog } from "./utils.js";
 let AC = new AudioContext();
 
 let masterFader = new GainNode(AC),
@@ -7,30 +12,10 @@ let masterFader = new GainNode(AC),
     masterOscilloscope = new AnalyserNode(AC),
     masterFFTAnalyser = new AnalyserNode(AC);
 
-let openNode = null;
-
-const uiChange = .005; // 5ms
-
 let constantSource = null, freqConstant = null, adsrConstant = null;
 let osc1 = null, adsr = null;
 let osc2 = null, fmfreq = null;
 let osc = {};
-
-function get(id) {
-    return document.getElementById(id);
-}
-
-function getMousePos(canvas, e) {
-    const rect = canvas.getBoundingClientRect();
-    return {x: e.clientX - rect.left, y: e.clientY - rect.top};
-}
-
-function getAudioNode(name) {
-    if(AC == null) return null;
-    const mod = getModulationNodes();
-    for(let k in mod) if(mod[k].name == name) return mod[k];
-    return fx.getAudioNode(name);
-}
 
 function initAudio() {
     AC = new AudioContext();
@@ -113,21 +98,6 @@ function deleteFx(name) {
     updateModUI(fx.getAllNodes());
 }
 
-function openFx(name) {
-    openNode = fx.getAudioNode(name);
-    if(openNode === null) return;
-
-    get('fxEditor').innerHTML = '';
-    if(openNode.fxtype in FX_DRAW) {
-        const drawn = openNode['draw']();
-        const editName = "<input type='text' id='label_" + name + "' value='" + openNode.label + "' onchange='setNodeLabel(\"" + name + "\", this.value);'></input>";
-        get('fxEditor').innerHTML = editName + "<br>" + drawn['html'];
-        if(drawn['canvas'] !== undefined) setTimeout(() => drawn['canvas'](), 1);
-    }
-    get('fxEditor').innerHTML += '<br>';
-    // TODO open channels editor see https://developer.mozilla.org/docs/Web/API/AudioNode
-}
-
 function setNodeLabel(name, label) {
     let node = getAudioNode(name);
     if(node === null) return;
@@ -142,60 +112,15 @@ function setNodeLabel(name, label) {
     if(el !== undefined) el.innerHTML = label;
 }
 
-function closeFx() {
-    get('fxEditor').innerHTML = '';
-    openNode = null;
-}
-
-function lerp(val, start, end) {
-    return (1 - val) * start + val * end;
-}
-
-function linearToLog(val, min, max) {
-    // TODO simplify or memoize
-    let b = Math.log10(min / max) / (min - max),
-        a = max / Math.pow(10, b * max);
-    return Math.log10(val / a) / b;
-}
-
-function logToLinear(val, min, max) {
-    // TODO simplify or memoize
-    let b = Math.log10(min / max) / (min - max),
-        a = max / Math.pow(10, b * max);
-    return Math.pow(10, val * b) * a;
-}
-
-function dbToRatio(db) {
-    return Math.pow(10, db / 20);
-}
-
-function ratioToDB(r) {
-    return Math.log10(r) * 20;
-}
-
-const SEMITONE_PITCH = Math.pow(2, 1. / 12);
-function getNoteFreq(midiPitch) {
-    let result = 1;
-    while (midiPitch < 69 - 6) {
-        midiPitch += 12;
-        result /= 2.;
-    }
-    while (midiPitch > 69 + 6) {
-        midiPitch -= 12;
-        result *= 2;
-    }
-    return result * Math.pow(SEMITONE_PITCH, midiPitch - 69) * 440;
-}
-
 function playOsc(note = 69) {
     if(AC === null) return;
     if(osc[note] !== undefined) return;
 
     const nodes = copyFxs(fx.getAllNodes().concat(getModulationNodes()));
 
-    const attack = Number(get("attack").value) / 1000,
-        decay = Number(get("decay").value) / 1000,
-        sustain = Number(get("sustain").value);
+    const attack = Number(getI("attack").value) / 1000,
+        decay = Number(getI("decay").value) / 1000,
+        sustain = Number(getI("sustain").value);
     nodes[adsrConstant.name].node.offset.setValueAtTime(0, AC.currentTime);
     nodes[adsrConstant.name].node.offset.setTargetAtTime(1, AC.currentTime, attack / 5);
     nodes[adsrConstant.name].node.offset.setTargetAtTime(sustain, AC.currentTime + attack, decay / 5);
@@ -208,11 +133,6 @@ function playOsc(note = 69) {
         if(nodes[k].fxtype == 'constant') nodes[k].node.start(time);
     }
 
-    //o.osc2.node.frequency.value = o.node.frequency.value;
-    //o.osc2.node.type = get("waveform2").value;
-
-    //o.fmfreq.node.gain.value = o.node.frequency.value;
-
     nodes[fx.getOutput().name].node.connect(masterFader);
 
     osc[note] = nodes;
@@ -220,7 +140,7 @@ function playOsc(note = 69) {
 
 function stopOsc(note = 69) {
     if(osc[note] === undefined) return;
-    const release = Number(get("release").value) / 1000; // s
+    const release = Number(getI("release").value) / 1000; // s
     const nodes = osc[note];
     setTimeout(() => {
         for(let k in nodes) {
@@ -238,18 +158,10 @@ function stopOsc(note = 69) {
 function updateADSR() {
     if(AC === null) return;
 
-    get("attackval").innerHTML = get("attack").value;
-    get("decayval").innerHTML = get("decay").value;
-    get("sustainval").innerHTML = get("sustain").value;
-    get("releaseval").innerHTML = get("release").value;
-}
-
-// XXX delete this
-function updateFM() {
-    if(AC === null) return;
-    get('fmval').innerHTML = get("fm").value;
-    /*for(const [, nodes] of Object.entries(osc))
-        nodes[osc1.name].fma.node.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, uiChange);*/
+    get("attackval").innerHTML = getI("attack").value;
+    get("decayval").innerHTML = getI("decay").value;
+    get("sustainval").innerHTML = getI("sustain").value;
+    get("releaseval").innerHTML = getI("release").value;
 }
 
 // XXX remove this
@@ -257,10 +169,9 @@ async function mainloop() {
     setTimeout(mainloop, 1/20);
 
     if(AC === null) return;
-    const canvas = get("oscilloscope");
+    const canvas = get("oscilloscope") as HTMLCanvasElement;
     if(canvas === null) return;
     let ctx = canvas.getContext("2d");
-    //let ctx = new CanvasRenderingContext2D();
     const h = canvas.height * .95, hh = Math.floor(canvas.height / 2 * .95),
         w = canvas.width, ww = Math.floor(canvas.width / 2);
     ctx.fillStyle = "white";
@@ -338,24 +249,25 @@ window.onload = () => {
     drawflow.curvature = .25;
     drawflow.start();
 
-    let fader = get("fader");
-    fader.onmousemove = fader.onchange = function() {
-        if(AC === null) return;
-        get("fadervalue").innerHTML = this.value + " db";
-        masterFader.gain.setTargetAtTime(dbToRatio(this.value), AC.currentTime, uiChange);
-    };
+    let fader = getI("fader");
+    fader.onmousemove = fader.onchange =
+        function(this: HTMLInputElement, ev: Event | MouseEvent): (this: HTMLInputElement) => any {
+            if(AC === null) return;
+            get("fadervalue").innerHTML = this.value + " db";
+            masterFader.gain.setTargetAtTime(dbToRatio(this.value), AC.currentTime, uiChange);
+        };
 
     const KEYS = ['<', 'w', 's', 'x', 'd', 'c', 'v', 'g', 'b', 'h', 'n', 'j', ',', ';', 'l', ':', 'm', '!'],
         KEY_START = 11;
 
     window.addEventListener("keydown", function(e) {
         if(KEYS.indexOf(e.key) !== -1)
-            playOsc(KEY_START + KEYS.indexOf(e.key) + get("octave").value*12);
+            playOsc(KEY_START + KEYS.indexOf(e.key) + Number(getI("octave").value)*12);
     });
 
     window.addEventListener("keyup", function(e) {
         if(KEYS.indexOf(e.key) !== -1)
-            stopOsc(KEY_START + KEYS.indexOf(e.key) + get("octave").value*12);
+            stopOsc(KEY_START + KEYS.indexOf(e.key) + Number(getI("octave").value)*12);
     });
 
     mainloop();
