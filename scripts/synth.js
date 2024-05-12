@@ -120,12 +120,26 @@ function openFx(name) {
     get('fxEditor').innerHTML = '';
     if(openNode.fxtype in FX_DRAW) {
         const drawn = openNode['draw']();
-        const editName = "<input type='text' id='label_" + name + "' value='" + openNode.label + "'></input>";
+        const editName = "<input type='text' id='label_" + name + "' value='" + openNode.label + "' onchange='setNodeLabel(\"" + name + "\", this.value);'></input>";
         get('fxEditor').innerHTML = editName + "<br>" + drawn['html'];
         if(drawn['canvas'] !== undefined) setTimeout(() => drawn['canvas'](), 1);
     }
     get('fxEditor').innerHTML += '<br>';
     // TODO open channels editor see https://developer.mozilla.org/docs/Web/API/AudioNode
+}
+
+function setNodeLabel(name, label) {
+    let node = getAudioNode(name);
+    if(node === null) return;
+    //TODO update all ui (names in mod matrix)
+    node.label = label;
+    const graphnode = fx.getNodes(name)[0];
+    if(graphnode != undefined) {
+        fx.getNode(graphnode).html = label;
+    }
+    updateModUI(fx.getAllNodes());
+    let el = get("graph_" + name);
+    if(el !== undefined) el.innerHTML = label;
 }
 
 function closeFx() {
@@ -228,14 +242,6 @@ function updateADSR() {
     get("decayval").innerHTML = get("decay").value;
     get("sustainval").innerHTML = get("sustain").value;
     get("releaseval").innerHTML = get("release").value;
-}
-
-// XXX delete this
-function updateFM() {
-    if(AC === null) return;
-    get('fmval').innerHTML = get("fm").value;
-    /*for(const [, nodes] of Object.entries(osc))
-        nodes[osc1.name].fma.node.gain.setTargetAtTime(Number(get("fm").value) / 100, AC.currentTime, uiChange);*/
 }
 
 // XXX remove this
