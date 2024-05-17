@@ -39,7 +39,7 @@ function gainChanged(name) {
     if(AC === null) return;
     const val = get('fader_' + name).value;
     get("value_fader_" + name).innerHTML = round(val, 1);
-    getAudioNode(name).node.gain.setTargetAtTime(dbToRatio(val), AC.currentTime, uiChange);
+    getAudioNode(name).setParam('gain', dbToRatio(val));
 }
 
 function drawGain(name) {
@@ -53,7 +53,7 @@ function delayChanged(name) {
     if(AC === null) return;
     const val = get('delay_' + name).value;
     get("value_delay_" + name).innerHTML = 1000 * round(val, 3);
-    getAudioNode(name).node.delayTime.setTargetAtTime(val, AC.currentTime, uiChange);
+    getAudioNode(name).setParam('delayTime', val);
 }
 
 function drawDelay(name) {
@@ -99,7 +99,7 @@ function setDistortion(name, preset) {
             break;
         case "clip":
             arr = new Float32Array([-1, -1, -1, -1, 0, 1, 1, 1, 1]);
-            fx.node.curve = arr;
+            fx.setValue('curve', arr);
             updateDistortionCurve(name);
             break;
         case "sine":
@@ -107,7 +107,7 @@ function setDistortion(name, preset) {
             break;
         case "fold":
             arr = new Float32Array([0, -1, 0, 1, 0]);
-            fx.node.curve = arr;
+            fx.setValue('curve', arr);
             updateDistortionCurve(name);
             break;
         default:
@@ -124,7 +124,7 @@ function distortionFunction(name, func, n) {
             if(arr[i] > 1) arr[i] = 1;
             if(arr[i] < -1) arr[i] = -1;
         }
-        fx.node.curve = arr;
+        fx.setValue('curve', arr);
     } catch (e) {
         console.log("Your function was invalid : " + e);
     }
@@ -134,7 +134,7 @@ function distortionFunction(name, func, n) {
 function distortionChanged(name) {
     if(AC === null) return;
     const val = get('oversample_' + name).value;
-    getAudioNode(name).node.oversample = val;
+    getAudioNode(name).setValue('oversample', val);
 }
 
 let mbuttons = [];
@@ -211,7 +211,8 @@ function updateDistortionCurve(name, e = null) {
             w = canvas.width;
     if(e !== null) {
         const newArr = createDistortionCurve(name, e, canvas);
-        if(newArr !== null) fx.node.curve = newArr;
+        
+        if(newArr !== null) fx.setValue('curve', newArr);
     }
     let ctx = canvas.getContext("2d");
     //let ctx = new CanvasRenderingContext2D();
@@ -269,17 +270,17 @@ function updateBFilter(name, e = null) {
         if(e.type === 'mousedown' || (e.type === "mousemove" && mbuttons[0])) {
             mbuttons[e.button] = true;
             // One digit after decimal point
-            fx.node.frequency.value = Math.round(10 * (logToLinear(pos.x, 1, w) - 1) / 2 * AC.sampleRate / w) / 10;
-            fx.node.gain.value = Math.round(-10 * (pos.y / h * 80 - 40)) / 10;
+            fx.setParam('frequency', Math.round(10 * (logToLinear(pos.x, 1, w) - 1) / 2 * AC.sampleRate / w) / 10);
+            fx.setParam('gain', Math.round(-10 * (pos.y / h * 80 - 40)) / 10);
             get("beqfreq_" + name).innerHTML = Math.round(fx.node.frequency.value * 10) / 10;
             get("beqgain_" + name).innerHTML = Math.round(fx.node.gain.value * 10) / 10;
         } else if(e.type === "mouseup")
             mbuttons[e.button] = false;
     }
 
-    fx.node.Q.value = get("beqfactor_" + name).value;
+    fx.setParam('Q', get("beqfactor_" + name).value);
     get("value_beqfactor_" + name).innerHTML = get("beqfactor_" + name).value;
-    fx.node.type = get("beqtype_" + name).value;
+    fx.setValue('type', get("beqtype_" + name).value);
     drawBFilterEQ(name);
 }
 
@@ -349,11 +350,11 @@ function updateCompressor(name) {
         rel = get('comrelease_' + name).value,
         thresh = get('comthreshold_' + name).value;
 
-    fx.node.attack.value = att;
-    fx.node.knee.value = knee;
-    fx.node.ratio.value = ratio;
-    fx.node.release.value = rel;
-    fx.node.threshold.value = thresh;
+    fx.setParam('attack', att);
+    fx.setParam('knee', knee);
+    fx.setParam('ratio', ratio);
+    fx.setParam('release', rel);
+    fx.setParam('threshold', thresh);
 
     get('value_comattack_' + name).innerHTML = round(att, 3);
     get('value_comknee_' + name).innerHTML = round(knee, 1);
@@ -439,7 +440,7 @@ function drawPanner(name) {
 function updatePanner(name) {
     if(AC === null) return;
 
-    this.node.pan.value = get('pan_' + name).value;
+    fx.setParam('pan', get('pan_' + name).value);
     get('value_pan_' + name).innerHTML = panToText(getAudioNode(name).node.pan.value);
 }
 
@@ -464,10 +465,10 @@ function updateAnalyser(name) {
     if(AC === null) return;
     const fx = getAudioNode(name);
 
-    fx.node.fftSize = Math.pow(2, get("analysersize_" + name).value);
-    fx.node.minDecibels = get("analysermin_" + name).value;
-    fx.node.maxDecibels = get("analysermax_" + name).value;
-    fx.node.smoothingTimeConstant = get("analysersmooth_" + name).value;
+    fx.setValue('fftSize', Math.pow(2, get("analysersize_" + name).value));
+    fx.setValue('minDecibels', get("analysermin_" + name).value);
+    fx.setValue('maxDecibels', get("analysermax_" + name).value);
+    fx.setValue('fftSize', get("analysersmooth_" + name).value);
     get("value_analysersmooth_" + name).innerHTML = fx.node.smoothingTimeConstant;
     drawAnalyserCanvas(name);
 }
@@ -603,13 +604,13 @@ async function updateConvolverBuffer(name) {
         return handle[0].getFile().then((file) => file.arrayBuffer());
     });
 
-    fx.node.buffer = await AC.decodeAudioData(contents);
+    fx.setValue('buffer', await AC.decodeAudioData(contents));
 }
 
 function updateConvolver(name) {
     if(AC === null) return;
 
-    getAudioNode(name).node.normalize = get("convnorm_" + name).checked;
+    getAudioNode(name).setValue('normalize', get("convnorm_" + name).checked);
 }
 
 function drawOscillator(name) {
@@ -617,10 +618,10 @@ function drawOscillator(name) {
     const type = fx.node.type;
     return {
         html: 'Waveform <select onchange="updateOscillator(\'' + name + '\')" id="osctype_' + name + '">' +
-        '<option value="sine">Sine</option>' +
-        '<option value="triangle">Triangle</option>' +
-        '<option value="square">Square</option>' +
-        '<option value="sawtooth">Sawtooth</option>' +
+        '<option value="sine" ' + (type == 'sine' ? 'selected' : '') + '>Sine</option>' +
+        '<option value="triangle"' + (type == 'triangle' ? 'selected' : '') + '>Triangle</option>' +
+        '<option value="square"' + (type == 'square' ? 'selected' : '') + '>Square</option>' +
+        '<option value="sawtooth"' + (type == 'sawtooth' ? 'selected' : '') + '>Sawtooth</option>' +
         //TODO get a fucking logarithmic scale in there
         "</select><br>Frequency : " + drawParamUI(fx.node.frequency.value, "oscfreq_" + name, "hz", "updateOscillator('" + name + "')", 0, 20000, 1) +
         "<br>Detune : " + drawParamUI(fx.node.detune.value, "oscdetune_" + name, "cent", "updateOscillator('" + name + "')", -200, 200, 1)
@@ -633,9 +634,9 @@ function updateOscillator(name) {
     const fx = getAudioNode(name);
     if(fx == null) return;
 
-    fx.node.type = get("osctype_" + name).value;
-    fx.node.frequency.value = get("oscfreq_" + name).value;
-    fx.node.detune.value = get("oscdetune_" + name).value;
+    fx.setValue('type', get("osctype_" + name).value);
+    fx.setParam('frequency', get("oscfreq_" + name).value);
+    fx.setParam('detune', get("oscdetune_" + name).value);
 
     get("value_oscfreq_" + name).innerHTML = fx.node.frequency.value;
     get("value_oscdetune_" + name).innerHTML = fx.node.detune.value;
@@ -653,7 +654,7 @@ function updateConstant(name) {
 
     const fx = getAudioNode(name);
     if(fx == null) return;
-    fx.node.offset.value = get("constoffset_" + name).value;
+    fx.setParam('offset', get("constoffset_" + name).value);
     get("value_constoffset_" + name).innerHTML = round(fx.node.offset.value, 2);
 }
 

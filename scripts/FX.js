@@ -76,10 +76,28 @@ function uidGen(length) {
     return result;
 }
 
+const FX_EVENTS = ['paramChange', 'valueChange', 'connect', 'disconnect'];
+
+class AudioParamChangeEvent extends Event {
+    fx;
+    param;
+    newValue;
+    smooth;
+
+    constructor(fx, param, value, smooth) {
+        super('paramChange', {cancelable: true});
+
+        this.fx = fx;
+        this.param = param;
+        this.newValue = value;
+        this.smooth = smooth;
+    }
+}
+
 /**
  * Wrapper for every node in the webapi (why do we have no way to access data about connections?)
  */
-class FX {
+class FX extends EventTarget {
     // internals
     inputs;
     inputParams;
@@ -100,6 +118,8 @@ class FX {
     label;
 
     constructor(node) {
+        super();
+
         this.inputs = {};
         this.inputParams = {};
         this.outputs = [];
@@ -114,6 +134,26 @@ class FX {
         if(this.fxtype === undefined) throw new TypeError("Node given is not a supported type !");
         if(this.fxtype in FX_DRAW) this.draw = () => FX_DRAW[this.fxtype](this.name);
         this.label = this.fxtype + "-" + this.name;
+    }
+
+    setValue(valueName, value) {
+        if (this.dispatchEvent(new Event('valueChange', {cancelable: true}))) {
+            this.node[valueName] = value;
+            return true;
+        }
+        return false;
+    }
+
+    setParam(param, value, smooth = false) {
+        let ev = new AudioParamChangeEvent(this, param, value, smooth);
+        if (this.dispatchEvent(ev)) {
+            if (smooth)
+                this.node[param].setTargetAtTime(ev.newValue, this.node.context.currentTime, uiChange);
+            else
+                this.node[param].value = ev.newValue;
+            return true;
+        }
+        return false;
     }
 
     connect(fx, output = 0, input = 0) {

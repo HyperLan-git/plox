@@ -206,12 +206,17 @@ function playOsc(note = 69) {
     for(let k in nodes) {
         if(nodes[k].fxtype == 'oscillator') nodes[k].node.start(time);
         if(nodes[k].fxtype == 'constant') nodes[k].node.start(time);
+
+        nodes[k].paramListener = (e) => {
+            nodes[k].setParam(e.param, e.newValue, true);
+        };
+        getAudioNode(k).addEventListener('paramChange', nodes[k].paramListener);
+
+        nodes[k].valueListener = (e) => {
+            nodes[k].setValue(e.newValue);
+        }
+        getAudioNode(k).addEventListener('valueChange', nodes[k].valueListener);
     }
-
-    //o.osc2.node.frequency.value = o.node.frequency.value;
-    //o.osc2.node.type = get("waveform2").value;
-
-    //o.fmfreq.node.gain.value = o.node.frequency.value;
 
     nodes[fx.getOutput().name].node.connect(masterFader);
 
@@ -231,6 +236,9 @@ function stopOsc(note = 69) {
     osc[note][adsrConstant.name].node.offset.setTargetAtTime(0, AC.currentTime, release / 5);
     for(let k in osc[note]) {
         if(osc[note][k].fxtype == 'oscillator') nodes[k].node.stop(AC.currentTime + release);
+
+        getAudioNode(k).removeEventListener('paramChange', osc[note][k].paramListener);
+        getAudioNode(k).removeEventListener('valueChange', osc[note][k].valueListener);
     }
     delete osc[note];
 }
