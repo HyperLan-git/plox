@@ -47,7 +47,7 @@ function addMod(inNode, outNode, param, label = null) {
 function updateModAmount(id) {
     get("mod_amount_" + id).min = get("mod_min_" + id).value;
     get("mod_amount_" + id).max = get("mod_max_" + id).value;
-    modulations[id].amount.node.gain.value = get("mod_amount_" + id).value;
+    modulations[id].amount.setParam('gain', get("mod_amount_" + id).value);
     get("value_mod_amount_" + id).innerHTML = get("mod_amount_" + id).value;
 }
 
