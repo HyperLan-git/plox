@@ -144,7 +144,7 @@ function createDistortionCurve(name, e, canvas) {
     let curve = fx.node.curve;
     if(curve === null) curve = new Float32Array([-1, 0, 1]);
     const hh = canvas.height / 2, w = canvas.width;
-    const pos = getMousePos(canvas, e);
+    const pos = getCanvasPos(canvas, e);
     const idx = Math.round(pos.x / w * (curve.length - 1));
     const symmetry = get("symmetry_" + name).checked;
     switch(e.type) {
@@ -266,7 +266,7 @@ function updateBFilter(name, e = null) {
         const canvas = get("beq_" + name);
         const h = canvas.height,
             w = canvas.width;
-        const pos = getMousePos(get("beq_" + name), e);
+        const pos = getCanvasPos(get("beq_" + name), e);
         if(e.type === 'mousedown' || (e.type === "mousemove" && mbuttons[0])) {
             mbuttons[e.button] = true;
             // One digit after decimal point

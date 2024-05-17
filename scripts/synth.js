@@ -20,7 +20,7 @@ function get(id) {
     return document.getElementById(id);
 }
 
-function getMousePos(canvas, e) {
+function getCanvasPos(canvas, e) {
     const rect = canvas.getBoundingClientRect();
     return {x: e.clientX - rect.left, y: e.clientY - rect.top};
 }
@@ -96,6 +96,124 @@ function initAudio() {
     fx.connectGraphNode(adsr, fx.getOutput());
     fx.getOutput().node.connect(masterFader);
     updateModUI(fx.getAllNodes());
+
+    drawSynth();
+}
+
+function drawSynth() {
+    if(AC === null) return;
+    const canvas = get("synth");
+    if(canvas === null) return;
+    let ctx = canvas.getContext("2d");
+    // let ctx = new CanvasRenderingContext2D();
+
+    const notes = ["C", "D", "E", "F", "G", "A", "B"];
+    const sharps = [0, 1, 3, 4, 5];
+    const noteSize = 50;
+    const octave = get('octave').value;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "black";
+    ctx.fillStyle = "black";
+    let i = 0;
+    for(let x = 0; x < canvas.width; x += noteSize) {
+        const note = notes[i % 7];
+        ctx.fillText(note + String(Number(octave) + Math.floor(i / 7)), x + 18, canvas.height * .95);
+        ctx.moveTo(x + noteSize, 0);
+        ctx.lineTo(x + noteSize, canvas.height);
+        if (sharps.includes(i % 7)) {
+            ctx.fillRect(x + noteSize * 3 / 4, 0, noteSize / 2, canvas.height * .7);
+            ctx.fill();
+        }
+        ctx.stroke();
+        i++;
+    }
+
+    let down = false, pressed = 0;
+    canvas.onmousedown = (e) => {
+        const pos = getCanvasPos(canvas, e);
+        const note = Math.floor(pos.x / noteSize);
+        let n = 0;
+        for (let i = 0; i < note; i++, n++) if(sharps.includes(i % 7)) n++;
+        if (e.button == 0) {
+            if(pos.y < canvas.height * .7) {
+                if(pos.x % noteSize < noteSize *.25) n--;
+                else if(pos.x % noteSize > noteSize * .75) n++;
+            }
+            playOsc(get('octave').value * 12 + 24 + n);
+            pressed = n;
+        }
+        down = true;
+    };
+    canvas.onmousemove = (e) => {
+        const pos = getCanvasPos(canvas, e);
+        const note = Math.floor(pos.x / noteSize);
+        let n = 0;
+        for (let i = 0; i < note; i++, n++) if(sharps.includes(i % 7)) n++;
+        if(pos.y < canvas.height * .7) {
+            if(pos.x % noteSize < noteSize *.25) n--;
+            else if(pos.x % noteSize > noteSize * .75) n++;
+        }
+        if(down && n != pressed) {
+            stopOsc(get('octave').value * 12 + 24 + pressed);
+            playOsc(get('octave').value * 12 + 24 + n);
+            pressed = n;
+        }
+    };
+    canvas.onmouseleave = (e) => {
+        for(let k in osc) stopOsc(Number(k));
+        down = false;
+    };
+    canvas.onmouseup = (e) => {
+        if (e.button == 0) {
+            for(let k in osc) stopOsc(Number(k));
+            down = false;
+        }
+    };
+    let touches = {};
+    canvas.ontouchstart = (e) => {
+        for(let touch = 0; touch < e.changedTouches.length; touch++) {
+            const t = e.changedTouches.item(touch);
+            const pos = getCanvasPos(canvas, t);
+            const note = Math.floor(pos.x / noteSize);
+            let n = 0;
+            for (let i = 0; i < note; i++, n++) if(sharps.includes(i % 7)) n++;
+            if(pos.y < canvas.height * .7) {
+                if(pos.x % noteSize < noteSize *.25) n--;
+                else if(pos.x % noteSize > noteSize * .75) n++;
+            }
+            playOsc(get('octave').value * 12 + 24 + n);
+            touches[t.identifier] = get('octave').value * 12 + 24 + n;
+        }
+    };
+    canvas.ontouchmove = (e) => {
+        for(let touch = 0; touch < e.changedTouches.length; touch++) {
+            const t = e.changedTouches.item(touch);
+            const pos = getCanvasPos(canvas, t);
+            const note = Math.floor(pos.x / noteSize);
+            let n = 0;
+            for (let i = 0; i < note; i++, n++) if(sharps.includes(i % 7)) n++;
+            if(pos.y < canvas.height * .7) {
+                if(pos.x % noteSize < noteSize *.25) n--;
+                else if(pos.x % noteSize > noteSize * .75) n++;
+            }
+            const val = get('octave').value * 12 + 24 + n;
+            if(touches[t.identifier] != val) {
+                stopOsc(touches[t.identifier]);
+                playOsc(val);
+                touches[t.identifier] = val;
+            }
+        }
+    };
+    canvas.ontouchend = (e) => {
+        for(let touch = 0; touch < e.changedTouches.length; touch++) {
+            const t = e.changedTouches.item(touch);
+            stopOsc(touches[t.identifier]);
+            delete touches[t.identifier];
+        }
+    };
 }
 
 function addFx(type) {
@@ -338,6 +456,22 @@ window.onload = () => {
     drawflow.curvature = .25;
     drawflow.start();
 
+    get("play").ontouchend = (e) => {
+        // Do some logic      
+        e.preventDefault();
+        get("play").onmouseup();
+    };
+    get("synth").ontouchend = (e) => {
+        // Do some logic      
+        e.preventDefault();
+        get("synth").onmouseup();
+    };
+    get("play").oncontextmenu = get("synth").oncontextmenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+   };
+
     let fader = get("fader");
     fader.onmousemove = fader.onchange = function() {
         if(AC === null) return;
@@ -346,7 +480,7 @@ window.onload = () => {
     };
 
     const KEYS = ['<', 'w', 's', 'x', 'd', 'c', 'v', 'g', 'b', 'h', 'n', 'j', ',', ';', 'l', ':', 'm', '!'],
-        KEY_START = 11;
+        KEY_START = 23;
 
     window.addEventListener("keydown", function(e) {
         if(KEYS.indexOf(e.key) !== -1)
