@@ -15,21 +15,9 @@
     <title>HyperLan</title>
 </head>
 
-<body>
-    <div>
-        <p>
-            <button onclick="initAudio(); this.disabled = true;">Enable</button><br>
-            Master fader <input type="range" id="fader" min="-40" max="0" step="0.1" value="-40"/><span id="fadervalue">-40 db</span><br>
-            Attack <input type="range" id="attack" min="0" max="4000" step="1" value="10" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="attackval">10</span> ms<br>
-            Decay <input type="range" id="decay" min="0" max="4000" step="1" value="0" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="decayval">0</span> ms<br>
-            Sustain <input type="range" id="sustain" min="0" max="1" step="0.01" value="1" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="sustainval">1</span><br>
-            Release <input type="range" id="release" min="0" max="4000" step="1" value="25" onmousemove="updateADSR()" onchange="updateADSR()"></input><span id="releaseval">25</span> ms<br>
-            Octave <input type="number" value="4" id="octave" min="0" max="10" onchange="drawSynth(); for(let k in osc) stopOsc(Number(k));"></input>
-            <button id="play" ontouchstart="this.onmousedown();" ontouchend="this.onmouseup();" onmousedown="playOsc(get('octave').value*12+21);" onmouseup="stopOsc(get('octave').value*12+21);" onmouseleave="stopOsc(get('octave').value*12+21);">
-                PLAY</button> (or use the lower row of keyboard)<br>
-            <canvas id="synth" width="800" height="200"></canvas>
-        </p>
-    </div>
+<body class="stop-scrolling">
+    <button onclick="initAudio(); this.remove(); document.body.classList.remove('stop-scrolling');"
+        style="width:100%; height: 50vw; font-size: x-large;">Enable</button><br>
     <div>
         <p>
             New FX
@@ -74,8 +62,18 @@
         <tbody id="modList"></tbody>
     </table>
     <div>
+        <p id="play">
+            Master fader <input type="range" id="fader" min="-40" max="0" step="0.1" value="-40"/><span id="fadervalue">-40 db</span><br>
+            Octave <input type="number" value="4" id="octave" min="0" max="10" onchange="drawSynth(); for(let k in osc) stopOsc(Number(k));"></input>&nbsp;
+            <button onclick="get('octave').value = Number(get('octave').value) + 1;get('octave').dispatchEvent(new Event('change'));">+ 1</button>&nbsp;
+            <button onclick="get('octave').value -= 1;get('octave').dispatchEvent(new Event('change'));">- 1</button><br>
+            <canvas id="synth" style="min-width: 500px;" width="700" height="200"></canvas> <button onclick="get('play').requestFullscreen()">fullscreen</button>
+        </p>
+    </div>
+    <div>
         <p>
-            <br><canvas id="oscilloscope" width="1400" height="500"></canvas>
+            <br><canvas id="spectrum" width="700" height="300"></canvas>
+            <br><canvas id="oscilloscope" width="700" height="300"></canvas>
         </p>
     </div>
 </body>

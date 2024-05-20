@@ -134,3 +134,8 @@ button {
     user-select: none;
     -moz-user-select: none;
 }
+
+.stop-scrolling {
+    height: 100%;
+    overflow: hidden;
+}

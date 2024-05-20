@@ -33,20 +33,20 @@ const PARAMS = {
     "audiobuffersource": ["detune", "playbackRate", "buffer", "loop", "loopStart", "loopEnd"],
     "streamsource": [],
     "streamdestination": [],
-    "constant": ["offset"]
+    "constant": ["offset", "type", "data"]
 };
 
 const MODULATIONS = {
     "gain": ["gain"],
     "delay": ["delayTime"],
     "distortion": [],
-    "biquadfilter": ["detune", "frequency", "Q", "gain"],
+    "biquadfilter": ["frequency", "detune", "Q", "gain"],
     "iirfilter": [],
     "compressor": ["threshold", "knee", "ratio", "attack", "release"],
     "stereopanner": ["pan"],
     "analyser": [],
     "convolver": [],
-    "oscillator": ["detune", "frequency"],
+    "oscillator": ["frequency", "detune"],
     "audiobuffersource": ["detune", "playbackRate"],
     "streamsource": [],
     "constant": ["offset"]
@@ -59,7 +59,37 @@ const CONST_NODE_TYPE = [
     "CONSTANT"
 ];
 
-// Code shamelessly stolen from SO
+const CONST_EXTERNAL_PARAM = [
+    "FREQUENCY",
+    "NOTE",
+    //"VELOCITY"
+];
+
+class Envelope {
+    attack;
+    decay;
+    sustain;
+    release;
+
+    constructor(attack, decay, sustain, release) {
+        this.attack = attack;
+        this.decay = decay;
+        this.sustain = sustain;
+        this.release = release;
+    }
+
+    start(startTime, param) {
+        param.setValueAtTime(0, startTime);
+        param.setTargetAtTime(1, startTime, this.attack / 5000);
+        param.setTargetAtTime(this.sustain, startTime + this.attack / 1000, this.decay / 5000);
+    }
+
+    end(time, param) {
+        param.cancelScheduledValues(time);
+        param.setTargetAtTime(0, time, this.release / 5000);
+    }
+}
+
 function valuesOf(o) {
     return Object.keys(o).map(function(k){return o[k]});
 }
