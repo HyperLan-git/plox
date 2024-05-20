@@ -106,7 +106,18 @@ function uidGen(length) {
     return result;
 }
 
-const FX_EVENTS = ['paramChange', 'valueChange', 'connect', 'disconnect'];
+const FX_EVENTS = ['paramChange', 'valueChange', 'labelChange', 'connect', 'disconnect'];
+
+class AudioNodeLabelChangeEvent extends Event {
+    fx;
+    label;
+
+    constructor(fx, label) {
+        super('labelChange', {cancelable: true});
+        this.fx = fx;
+        this.label = fx;
+    }
+}
 
 class AudioParamChangeEvent extends Event {
     fx;
@@ -147,8 +158,18 @@ class FX extends EventTarget {
     // editable by user
     label;
 
-    constructor(node) {
+    constructor(node, updateUILabels = true) {
         super();
+
+        if(updateUILabels) {
+            const labelListener = (e) => {
+                const list = document.getElementsByClassName("name_" + e.fx.name);
+                for(let i = 0; i < list.length; i++) {
+                    list.item(i).innerHTML = e.label;
+                }
+            };
+            this.addEventListener('labelChange', labelListener);
+        }
 
         this.inputs = {};
         this.inputParams = {};
@@ -181,6 +202,15 @@ class FX extends EventTarget {
                 this.node[param].setTargetAtTime(ev.newValue, this.node.context.currentTime, uiChange);
             else
                 this.node[param].value = ev.newValue;
+            return true;
+        }
+        return false;
+    }
+
+    setLabel(label) {
+        let ev = new AudioNodeLabelChangeEvent(this, label);
+        if (this.dispatchEvent(ev)) {
+            this.label = label;
             return true;
         }
         return false;
@@ -467,6 +497,11 @@ class FXGraph {
         for(let k in this.defaultNodes) {
             this.defaultNodes[k].gid = this.drawflow.addNode(this.defaultNodes[k].name, this.defaultNodes[k].node.numberOfInputs, this.defaultNodes[k].node.numberOfOutputs,
                     x * 300, y * 100, "", {node: this.defaultNodes[k].name}, "<span id='graph_" + this.defaultNodes[k].name + "'>" + this.defaultNodes[k].label + "</span>", false);
+            
+            this.defaultNodes[k].graphListener = (e) => {
+                this.getNode(this.defaultNodes[k].gid).html = e.label;
+            };
+            this.defaultNodes[k].addEventListener('labelChange', this.defaultNodes[k].graphListener);
             this.nodes[this.defaultNodes[k].name] = this.defaultNodes[k];
             x++;
             if(x > 1) {
@@ -520,6 +555,10 @@ class FXGraph {
         this.nodes[fx.name] = fx;
         fx.gid = this.drawflow.addNode(fx.name, node.numberOfInputs, node.numberOfOutputs, 0, 200, "", {node: fx.name},
                                         "<span id='graph_" + fx.name + "'>" + fx.label + "</span>", false);
+        fx.graphListener = (e) => {
+            this.getNode(fx.gid).html = e.label;
+        };
+        fx.addEventListener('labelChange', fx.graphListener);
         return fx.gid;
     }
 
@@ -528,6 +567,8 @@ class FXGraph {
         const fx = this.nodes[name];
         fx.disconnectInputs();
         fx.disconnectAll();
+        fx.removeEventListener('labelChange', fx.graphListener);
+        delete fx.graphListener;
         delete this.nodes[name];
     }
 

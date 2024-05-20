@@ -14,6 +14,20 @@ function addModulation() {
 
     const param = get("modParam").value;
     if(inNode == null || outNode == null || !(MODULATIONS[outNode.fxtype].includes(param))) return;
+    const labelListener = (e) => {
+        const list = document.getElementsByClassName("name_" + e.fx.name);
+        for(let i = 0; i < list.length; i++) {
+            list.item(i).innerHTML = e.label;
+        }
+    };
+    if(inNode.nameListener === undefined) {
+        inNode.labelListener = labelListener;
+        inNode.addEventListener('labelChange', inNode.labelListener);
+    }
+    if(outNode.nameListener === undefined) {
+        outNode.labelListener = labelListener;
+        outNode.addEventListener('labelChange', outNode.labelListener);
+    }
     return addMod(inNode, outNode, param);
 }
 
@@ -33,9 +47,8 @@ function addMod(inNode, outNode, param, label = null) {
     const maxCtr = " - <input type='number' value='1' style='width:3em' id='mod_max_" + uid + "' " + upd + "></input>";
     row.id = "mod_" + uid;
     row.insertCell().innerHTML = "<input onchange='setNodeLabel(\"" + amount.name + "\", this.value);' value=\"" + amount.label + "\"></input>";
-    //TODO event listener pattern...
-    row.insertCell().innerHTML = inNode.label;
-    row.insertCell().innerHTML = outNode.label + " -> " + param;
+    row.insertCell().innerHTML = '<span class="name_' + inNode.name + '">' + inNode.label + '</span>';
+    row.insertCell().innerHTML = '<span class="name_' + outNode.name + '">' + outNode.label + "</span>" + " -> " + param;
     row.insertCell().innerHTML = drawParamUI(amount.node.gain.value, "mod_amount_" + uid, null, "updateModAmount('" + uid + "')", -1, 1, .01) + minCtr + maxCtr;
     row.insertCell().innerHTML = "<button onclick='removeModulation(\"" + uid + "\");'>DELETE</button>";
 
@@ -64,8 +77,8 @@ function listModulableNodes(nodes) {
 }
 
 function updateModUI(nodes) {
-    get("modIn").innerHTML = nodes.map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
-    get("modOut").innerHTML = listModulableNodes(nodes).map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
+    get("modIn").innerHTML = nodes.map((x) => "<option value='" + x.name + "' class='name_" + x.name + "'>" + x.label + "</option>").join("");
+    get("modOut").innerHTML = listModulableNodes(nodes).map((x) => "<option value='" + x.name + "' class='name_" + x.name + "'>" + x.label + "</option>").join("");
 
     getModUiParams();
 }
