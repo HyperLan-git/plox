@@ -25,7 +25,7 @@ function drawParamUI(param, id, type, onchange, min, max, step = 0.1) {
     }
     if(valText === null) valText = val;
     let str = '<input type="range" id="' + id + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '"' +
-        'onchange="' + onchange + '" onmousemove="' + onchange + '"' +
+        'onchange="' + onchange + '" onmousemove="' + onchange + '"' + ' ontouchmove="' + onchange + '"' +
         '/><em id="value_' + id + '">' + valText + '</em> ' + (type != null ? type : "");
     return str;
 }
@@ -644,9 +644,34 @@ function updateOscillator(name) {
 
 function drawConstant(name) {
     const fx = getAudioNode(name);
+    const type = fx.node.type;
+    const typeoptions = CONST_NODE_TYPE.map((e) => ('<option value="' + e + '" ' + (type == e ? 'selected' : '') + '>' + e + '</option>')).join("");
     return {
-        html: "Value : " + drawParamUI(fx.node.offset.value, "constoffset_" + name, null, "updateConstant('" + name + "')", 0, 1, .01)
+        html: 'Type : <select onchange="updateConstant(\'' + name + '\')" id="consttype_' + name + '">' +
+                typeoptions +
+                "</select><br>" +
+                "<div id='constdata_" + name + "'>" +
+                drawConstantData(name, type, fx) +
+                "</div>"
     };
+}
+
+function drawConstantData(name, type, fx) {
+    const data = fx.node.data;
+    const upd = 'onmousemove="updateConstant(\'' + name + '\')" onchange="updateConstant(\'' + name + '\')"';
+    switch(type) {
+        case "CONSTANT":
+            return "Value : " + drawParamUI(round(fx.node.offset.value, 2), "constoffset_" + name, null, "updateConstant('" + name + "')", 0, 1, .01);
+        case "EXT_PARAM":
+            return "<select onchange='updateConstant(\"" + name + "\")' id='constparam_" + name + "'>" +
+                    CONST_EXTERNAL_PARAM.map((e) => "<option value='" + e + "' " + (fx.node.data == e ? 'selected' : '') + ">" + e + "</option>").join('') +
+                    "</select>";
+        case "ENVELOPE":
+            return 'Attack <input type="range" id="attack_' + name + '" min="0" max="4000" step="1" value="' + data.attack + '" ' + upd + '></input><span id="attackval_' + name + '">' + data.attack + '</span> ms<br>' +
+                'Decay <input type="range" id="decay_' + name + '" min="0" max="4000" step="1" value="' + data.decay + '" ' + upd + '></input><span id="decayval_' + name + '">' + data.decay + '</span> ms<br>' +
+                'Sustain <input type="range" id="sustain_' + name + '" min="0" max="1" step="0.01" value="' + data.sustain + '" ' + upd + '></input><span id="sustainval_' + name + '">' + data.sustain + '</span><br>' +
+                'Release <input type="range" id="release_' + name + '" min="0" max="4000" step="1" value="' + data.release + '" ' + upd + '></input><span id="releaseval_' + name + '">' + data.release + '</span> ms<br>';
+    }
 }
 
 function updateConstant(name) {
@@ -654,8 +679,28 @@ function updateConstant(name) {
 
     const fx = getAudioNode(name);
     if(fx == null) return;
-    fx.setParam('offset', get("constoffset_" + name).value);
-    get("value_constoffset_" + name).innerHTML = round(fx.node.offset.value, 2);
+    const newtype = get("consttype_" + name).value;
+    if(newtype != fx.node.type) {
+        get("constdata_" + name).innerHTML = drawConstantData(name, fx.node.type, fx);
+        fx.node.type = newtype;
+        return;
+    }
+    switch(fx.node.type) {
+        case "CONSTANT":
+            fx.setParam('offset', get("constoffset_" + name).value);
+            get("value_constoffset_" + name).innerHTML = round(fx.node.offset.value, 2);
+            break;
+        case "EXT_PARAM":
+            fx.node.data = get("constparam_" + name).value;
+            break;
+        case "ENVELOPE":
+            fx.node.data = new Envelope(get('attack_' + name).value, get('decay_' + name).value, get('sustain_' + name).value, get('release_' + name).value);
+            get("attackval_" + name).innerHTML = get('attack_' + name).value;
+            get("decayval_" + name).innerHTML = get('decay_' + name).value;
+            get("sustainval_" + name).innerHTML = get('sustain_' + name).value;
+            get("releaseval_" + name).innerHTML = get('release_' + name).value;
+            break;
+    }
 }
 
 const FX_DRAW = {
