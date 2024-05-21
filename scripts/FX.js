@@ -65,6 +65,10 @@ const CONST_EXTERNAL_PARAM = [
     //"VELOCITY"
 ];
 
+function deserializeEnvelope(json) {
+    return new Envelope(json.attack, json.decay, json.sustain, json.release);
+}
+
 class Envelope {
     attack;
     decay;
@@ -135,6 +139,27 @@ class AudioParamChangeEvent extends Event {
     }
 }
 
+class AudioValueChangeEvent extends Event {
+    fx;
+    value;
+    newValue;
+
+    constructor(fx, value, newValue) {
+        super('valueChange', {cancelable: true});
+
+        this.fx = fx;
+        this.value = value;
+        this.newValue = newValue;
+    }
+}
+
+const labelListener = (e) => {
+    const list = document.getElementsByClassName("name_" + e.fx.name);
+    for(let i = 0; i < list.length; i++) {
+        list.item(i).innerHTML = e.label;
+    }
+};
+
 /**
  * Wrapper for every node in the webapi (why do we have no way to access data about connections?)
  */
@@ -161,15 +186,8 @@ class FX extends EventTarget {
     constructor(node, updateUILabels = true) {
         super();
 
-        if(updateUILabels) {
-            const labelListener = (e) => {
-                const list = document.getElementsByClassName("name_" + e.fx.name);
-                for(let i = 0; i < list.length; i++) {
-                    list.item(i).innerHTML = e.label;
-                }
-            };
+        if(updateUILabels)
             this.addEventListener('labelChange', labelListener);
-        }
 
         this.inputs = {};
         this.inputParams = {};
@@ -188,7 +206,7 @@ class FX extends EventTarget {
     }
 
     setValue(valueName, value) {
-        if (this.dispatchEvent(new Event('valueChange', {cancelable: true}))) {
+        if (this.dispatchEvent(new AudioValueChangeEvent(this, valueName, value))) {
             this.node[valueName] = value;
             return true;
         }
@@ -216,7 +234,12 @@ class FX extends EventTarget {
         return false;
     }
 
+    // inputs are {fx, idx, output} where idx is the id of input and output is the other node's output
+    // outputs are {fx, idx, input} where idx is the id of output and input id the other node's input
     connect(fx, output = 0, input = 0) {
+        if(fx.inputs[this.name + input] != undefined) {
+            return false;
+        }
         this.outputs.push({fx: fx, idx: output, input: input});
         fx.inputs[this.name + input] = {fx: this, idx: input, output: output};
 
@@ -224,11 +247,17 @@ class FX extends EventTarget {
         return fx;
     }
 
+    // input params are {fx, param, output} where output is the other node's output
+    // output params are {fx, param, output} where output is the id of output
     connectParam(fx, param, output = 0) {
         if(MODULATIONS[fx.fxtype].indexOf(param) === -1) throw new TypeError(param + " is not a param of the fx type " + fx.fxtype + " !");
+        if(fx.inputParams[this.name + param + output] != undefined) {
+            return false;
+        }
         this.outputParams.push({fx: fx, param: param, idx: output});
         fx.inputParams[this.name + param + output] = {fx: this, param: param, output: output};
         this.node.connect(fx.node[param], output);
+        return true;
     }
 
     disconnectParam(fx, param, output = 0) {
@@ -370,7 +399,7 @@ class FX extends EventTarget {
         fx.node.channelInterpretation = this.node.channelInterpretation;
 
         for(const v of PARAMS[this.fxtype])
-            if(MODULATIONS[this.fxtype].indexOf(v) === -1)
+            if(!MODULATIONS[this.fxtype].includes(v))
                 fx.node[v] = this.node[v];
             else
                 fx.node[v].value = this.node[v].value; // It is an audioparam
@@ -394,7 +423,41 @@ class FX extends EventTarget {
         }
         return fx;
     }
+
+    serialize() {
+        const params = {};
+
+        for(let p of PARAMS[this.fxtype]) {
+            if(MODULATIONS[this.fxtype].includes(p))
+                params[p] = {audioParam: true, value: this.node[p].value};
+            else
+                params[p] = {audioParam: false, value: this.node[p]};
+        }
+        return {type: this.fxtype, label: this.label, params: params};
+    }
 }
+
+function deserializeFX(AC, json, updateUILabels = true) {
+    let node = FX_TYPES[json.Type];
+    if(node === undefined) throw new Error("Invalid node type !");
+
+    node = new node(AC);
+    const res = new FX(node, updateUILabels);
+
+    res.label = json.label;
+    for(let k in json.params) {
+        const val = json.params[k];
+        if(val["audioParam"] === true) {
+            res.node[k].value = val.value;
+        } else if(json.type == "constant" && k == "data" && json.params["type"] === "ENVELOPE") {
+            res.node[k] = new Envelope(val.value);
+        } else {
+            res.node[k] = val.value;
+        }
+    }
+    return res;
+}
+
 
 // Copies a list of fx and their connections, returns a dict with keys equal to the corresponding fx' uid
 // This is useful for the monophonic fx graph
@@ -497,11 +560,8 @@ class FXGraph {
         for(let k in this.defaultNodes) {
             this.defaultNodes[k].gid = this.drawflow.addNode(this.defaultNodes[k].name, this.defaultNodes[k].node.numberOfInputs, this.defaultNodes[k].node.numberOfOutputs,
                     x * 300, y * 100, "", {node: this.defaultNodes[k].name}, "<span id='graph_" + this.defaultNodes[k].name + "'>" + this.defaultNodes[k].label + "</span>", false);
-            
-            this.defaultNodes[k].graphListener = (e) => {
-                this.getNode(this.defaultNodes[k].gid).html = e.label;
-            };
-            this.defaultNodes[k].addEventListener('labelChange', this.defaultNodes[k].graphListener);
+
+            this.defaultNodes[k].addEventListener('labelChange', (e) => e.preventDefault());
             this.nodes[this.defaultNodes[k].name] = this.defaultNodes[k];
             x++;
             if(x > 1) {
@@ -563,16 +623,66 @@ class FXGraph {
     }
 
     deleteNode(name) {
-        if(!(name in nodes)) return false;
+        if(!(name in this.nodes)) return false;
         const fx = this.nodes[name];
         fx.disconnectInputs();
         fx.disconnectAll();
         fx.removeEventListener('labelChange', fx.graphListener);
         delete fx.graphListener;
         delete this.nodes[name];
+        return true;
     }
 
     getAllNodes() {
         return valuesOf(this.nodes);
     }
+
+    serialize() {
+        const nodes = {};
+        for(let k in this.nodes) nodes[k] = this.nodes[k].serialize();
+        const connections = [];
+        const params = [];
+        for(let k in this.nodes) {
+            for(let k2 in this.nodes[k].inputs) {
+                const v = this.nodes[k].inputs[k2];
+                connections.push({in: this.nodes[k].name, out: v.fx.name, input: v.idx, output: v.output});
+            }
+            for(let v of this.nodes[k].outputs) {
+                connections.push({in: v.fx.name, out: this.nodes[k].name, input: v.input, output: v.idx});
+            }
+            for(let k2 in this.nodes[k].inputParams) {
+                const v = this.nodes[k].inputParams[k2];
+                params.push({in: this.nodes[k].name, out: v.fx.name, param: v.param, output: v.output});
+            }
+        }
+        const defaults = [];
+        for(let k in this.defaultNodes) {
+            defaults.push({label:k, name: this.defaultNodes[k].name});
+        }
+        return {nodes: nodes, connections: connections, params: params, output: this.outputNode.name, defaultNodes: defaults};
+    }
+
+    deserialize() {
+
+    }
 };
+
+function deserializeFXGraph(AC, drawflow, json) {
+    const nodes = {};
+    for(let k in json.nodes)
+        nodes[k] = deserializeFX(AC, json.nodes[k]);
+
+    for(let con of json.connections) {
+        nodes[con.in].connect(nodes[con.out], con.output, con.input);
+    }
+    for(let p of json.params) {
+        nodes[p.in].connectParam(nodes[p.out], p.param, p.output);
+    }
+
+    const defaults = [];
+    for(let k in nodes) {
+        if(json.defaultNodes.includes(k)) defaults.push(nodes[k]);
+    }
+
+    
+}
