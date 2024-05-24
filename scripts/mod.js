@@ -14,20 +14,6 @@ function addModulation() {
 
     const param = get("modParam").value;
     if(inNode == null || outNode == null || !(MODULATIONS[outNode.fxtype].includes(param))) return;
-    const labelListener = (e) => {
-        const list = document.getElementsByClassName("name_" + e.fx.name);
-        for(let i = 0; i < list.length; i++) {
-            list.item(i).innerHTML = e.label;
-        }
-    };
-    if(inNode.nameListener === undefined) {
-        inNode.labelListener = labelListener;
-        inNode.addEventListener('labelChange', inNode.labelListener);
-    }
-    if(outNode.nameListener === undefined) {
-        outNode.labelListener = labelListener;
-        outNode.addEventListener('labelChange', outNode.labelListener);
-    }
     return addMod(inNode, outNode, param);
 }
 
@@ -90,4 +76,24 @@ function getModUiParams() {
 
     const type = node.fxtype;
     get("modParam").innerHTML = MODULATIONS[type].map((x) => "<option value='" + x + "'>" + x + "</option>").join("");
+}
+
+function serializeModulations() {
+    const res = [];
+    for(let k in modulations) {
+        res.push({
+            param: modulations[k].param,
+            in: modulations[k].in.name,
+            out: modulations[k].out.name,
+            amount: modulations[k].amount.node.gain.value,
+            label: modulations[k].amount.label
+        });
+    }
+    return res;
+}
+
+function deserializeModulations(nodes, mods) {
+    for(let k in modulations) {
+        removeModulation(k);
+    }
 }

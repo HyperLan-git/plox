@@ -1,4 +1,3 @@
-//TODO implement event listeners for clones of main nodes' params
 const FX_TYPES = {
     "gain": GainNode,
     "biquadfilter": BiquadFilterNode,
@@ -119,7 +118,7 @@ class AudioNodeLabelChangeEvent extends Event {
     constructor(fx, label) {
         super('labelChange', {cancelable: true});
         this.fx = fx;
-        this.label = fx;
+        this.label = label;
     }
 }
 
@@ -344,8 +343,8 @@ class FX extends EventTarget {
 
     disconnectInputs() {
         for(const k in this.inputParams) {
-            const v = this.inputs[k];
-            v["fx"].disconnect(this);
+            const v = this.inputParams[k];
+            v["fx"].disconnect(this.node[v.param]);
         }
         for(const k in this.inputs) {
             const v = this.inputs[k];
@@ -438,7 +437,7 @@ class FX extends EventTarget {
 }
 
 function deserializeFX(AC, json, updateUILabels = true) {
-    let node = FX_TYPES[json.Type];
+    let node = FX_TYPES[json.type];
     if(node === undefined) throw new Error("Invalid node type !");
 
     node = new node(AC);
@@ -449,8 +448,8 @@ function deserializeFX(AC, json, updateUILabels = true) {
         const val = json.params[k];
         if(val["audioParam"] === true) {
             res.node[k].value = val.value;
-        } else if(json.type == "constant" && k == "data" && json.params["type"] === "ENVELOPE") {
-            res.node[k] = new Envelope(val.value);
+        } else if(json.type == "constant" && k == "data" && json.params["type"]["value"] === "ENVELOPE") {
+            res.node[k] = new Envelope(val.value.attack, val.value.decay, val.value.sustain, val.value.release);
         } else {
             res.node[k] = val.value;
         }
@@ -462,7 +461,6 @@ function deserializeFX(AC, json, updateUILabels = true) {
 // Copies a list of fx and their connections, returns a dict with keys equal to the corresponding fx' uid
 // This is useful for the monophonic fx graph
 function copyFxs(...fxs) {
-    // TODO event system for params
     const res = {};
     if(fxs.length == 0) return res;
     if(fxs.length == 1 && fxs[0].constructor === Array) fxs = fxs[0];
@@ -529,7 +527,7 @@ class FXGraph {
                 if(this.defaultNodes[k].gid === e) {
                     this.defaultNodes[k].gid = 
                         this.drawflow.addNode(this.defaultNodes[k].name, this.defaultNodes[k].node.numberOfInputs, this.defaultNodes[k].node.numberOfOutputs,
-                                300, 200, "", {node: this.defaultNodes[k].name}, "<span id='graph_" + this.defaultNodes[k].name + "'>" + this.defaultNodes[k].label, false);
+                                300, 200, "", {node: this.defaultNodes[k].name}, "<span class='name_" + this.defaultNodes[k].name + "'>" + this.defaultNodes[k].label, false);
                     this.defaultNodes[k].disconnectInputs();
                     this.defaultNodes[k].disconnect();
                     return;
@@ -559,9 +557,8 @@ class FXGraph {
         let y = 0, x = 0;
         for(let k in this.defaultNodes) {
             this.defaultNodes[k].gid = this.drawflow.addNode(this.defaultNodes[k].name, this.defaultNodes[k].node.numberOfInputs, this.defaultNodes[k].node.numberOfOutputs,
-                    x * 300, y * 100, "", {node: this.defaultNodes[k].name}, "<span id='graph_" + this.defaultNodes[k].name + "'>" + this.defaultNodes[k].label + "</span>", false);
+                    x * 300, y * 100, "", {node: this.defaultNodes[k].name}, "<span class='name_" + this.defaultNodes[k].name + "'>" + this.defaultNodes[k].label + "</span>", false);
 
-            this.defaultNodes[k].addEventListener('labelChange', (e) => e.preventDefault());
             this.nodes[this.defaultNodes[k].name] = this.defaultNodes[k];
             x++;
             if(x > 1) {
@@ -614,11 +611,7 @@ class FXGraph {
         const fx = new FX(node);
         this.nodes[fx.name] = fx;
         fx.gid = this.drawflow.addNode(fx.name, node.numberOfInputs, node.numberOfOutputs, 0, 200, "", {node: fx.name},
-                                        "<span id='graph_" + fx.name + "'>" + fx.label + "</span>", false);
-        fx.graphListener = (e) => {
-            this.getNode(fx.gid).html = e.label;
-        };
-        fx.addEventListener('labelChange', fx.graphListener);
+                                        "<span class='name_" + fx.name + "'>" + fx.label + "</span>", false);
         return fx.gid;
     }
 
@@ -640,49 +633,65 @@ class FXGraph {
     serialize() {
         const nodes = {};
         for(let k in this.nodes) nodes[k] = this.nodes[k].serialize();
-        const connections = [];
-        const params = [];
+        const connections = {};
         for(let k in this.nodes) {
             for(let k2 in this.nodes[k].inputs) {
                 const v = this.nodes[k].inputs[k2];
-                connections.push({in: this.nodes[k].name, out: v.fx.name, input: v.idx, output: v.output});
+                if(nodes[v.fx.name] == undefined) continue;
+                connections[this.nodes[k].name + ":" + v.fx.name] = {in: this.nodes[k].name, out: v.fx.name, input: v.idx, output: v.output};
             }
             for(let v of this.nodes[k].outputs) {
-                connections.push({in: v.fx.name, out: this.nodes[k].name, input: v.input, output: v.idx});
-            }
-            for(let k2 in this.nodes[k].inputParams) {
-                const v = this.nodes[k].inputParams[k2];
-                params.push({in: this.nodes[k].name, out: v.fx.name, param: v.param, output: v.output});
+                if(nodes[v.fx.name] == undefined) continue;
+                connections[v.fx.name + ":" + this.nodes[k].name] = {in: v.fx.name, out: this.nodes[k].name, input: v.input, output: v.idx};
             }
         }
         const defaults = [];
         for(let k in this.defaultNodes) {
             defaults.push({label:k, name: this.defaultNodes[k].name});
         }
-        return {nodes: nodes, connections: connections, params: params, output: this.outputNode.name, defaultNodes: defaults};
+        return {nodes: nodes, connections: connections, output: this.outputNode.name, defaultNodes: defaults};
     }
 
-    deserialize() {
+    deserialize(json) {
+        for(let n in this.nodes) {
+            if(n != this.outputNode.name) {
+                this.drawflow.removeNodeId("node-" + this.nodes[n].gid);
+                this.deleteNode(n);
+            }
+        }
+        this.outputNode.disconnectAll();
+        const nodes = {};
+        let y = 0, x = 0;
+        for(let k in json.nodes) {
+            nodes[k] = deserializeFX(AC, json.nodes[k]);
+            this.nodes[nodes[k].name] = nodes[k];
 
+            if(k != json.output)
+                nodes[k].gid = this.drawflow.addNode(nodes[k].name, nodes[k].node.numberOfInputs, nodes[k].node.numberOfOutputs,
+                    x * 300, y * 100, "", {node: nodes[k].name}, "<span class='name_" + nodes[k].name + "'>" + nodes[k].label + "</span>", false);
+            x++;
+            if(x > 3) {
+                x = 0;
+                y++;
+            }
+        }
+
+        for(let k in json.connections) {
+            const con = json.connections[k];
+            if(nodes[con.out] == undefined || nodes[con.in] == undefined) continue;
+            if(con.in == json.output) {
+                nodes[con.out].connect(this.outputNode, con.output, con.input);
+                this.drawflow.addConnection(this.outputNode.gid, nodes[con.in].gid, 'output_' + String(con.output + 1), 'input_' + String(con.input + 1));
+            } else {
+                nodes[con.out].connect(nodes[con.in], con.output, con.input);
+                this.drawflow.addConnection(nodes[con.out].gid, nodes[con.in].gid, 'output_' + String(con.output + 1), 'input_' + String(con.input + 1));
+            }
+        }
+
+        this.defaultNodes = {};
+        for(let v of json.defaultNodes) {
+            this.defaultNodes[v.label] = nodes[v.name];
+        }
+        return nodes;
     }
 };
-
-function deserializeFXGraph(AC, drawflow, json) {
-    const nodes = {};
-    for(let k in json.nodes)
-        nodes[k] = deserializeFX(AC, json.nodes[k]);
-
-    for(let con of json.connections) {
-        nodes[con.in].connect(nodes[con.out], con.output, con.input);
-    }
-    for(let p of json.params) {
-        nodes[p.in].connectParam(nodes[p.out], p.param, p.output);
-    }
-
-    const defaults = [];
-    for(let k in nodes) {
-        if(json.defaultNodes.includes(k)) defaults.push(nodes[k]);
-    }
-
-    
-}
