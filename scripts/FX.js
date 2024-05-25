@@ -450,6 +450,12 @@ function deserializeFX(AC, json, updateUILabels = true) {
             res.node[k].value = val.value;
         } else if(json.type == "constant" && k == "data" && json.params["type"]["value"] === "ENVELOPE") {
             res.node[k] = new Envelope(val.value.attack, val.value.decay, val.value.sustain, val.value.release);
+        } else if(json.type == "distortion" && k == "curve") {
+            const arr = new Float32Array(Object.keys(val.value).length);
+            for(let k2 in val.value) {
+                arr[k2] = val.value[k2];
+            }
+            res.node[k] = arr;
         } else {
             res.node[k] = val.value;
         }
@@ -535,7 +541,7 @@ class FXGraph {
             }
             for(let k in this.nodes) {
                 if(this.nodes[k].gid === e) {
-                    this.deleteNode(this.nodes[k]);
+                    this.deleteNode(k);
                     return;
                 }
             }
