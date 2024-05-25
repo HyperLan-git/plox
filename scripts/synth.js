@@ -227,7 +227,7 @@ function addFx(type) {
     if(node === undefined) return;
 
     const audioNode = new node(AC);
-    if(type === "constant") audioNode.node.type = "CONSTANT";
+    if(type === "constant") audioNode.type = "CONSTANT";
     fx.addNode(audioNode);
     updateModUI(fx.getAllNodes());
 }
