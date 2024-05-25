@@ -145,8 +145,8 @@ function drawSynth() {
         for (let i = 0; i < note; i++, n++) if(sharps.includes(i % 7)) n++;
         if (e.button == 0) {
             if(pos.y < canvas.height * .7) {
-                if(pos.x % noteSize < noteSize *.25) n--;
-                else if(pos.x % noteSize > noteSize * .75) n++;
+                if(sharps.includes((note - 1) % 7) && pos.x % noteSize < noteSize *.25) n--;
+                else if(sharps.includes(note % 7) && pos.x % noteSize > noteSize * .75) n++;
             }
             playOsc(get('octave').value * 12 + 12 + n);
             pressed = n;
@@ -159,8 +159,8 @@ function drawSynth() {
         let n = 0;
         for (let i = 0; i < note; i++, n++) if(sharps.includes(i % 7)) n++;
         if(pos.y < canvas.height * .7) {
-            if(pos.x % noteSize < noteSize *.25) n--;
-            else if(pos.x % noteSize > noteSize * .75) n++;
+            if(sharps.includes((note - 1) % 7) && pos.x % noteSize < noteSize *.25) n--;
+            else if(sharps.includes(note % 7) && pos.x % noteSize > noteSize * .75) n++;
         }
         if(down && n != pressed) {
             stopOsc(get('octave').value * 12 + 12 + pressed);
@@ -187,8 +187,8 @@ function drawSynth() {
             let n = 0;
             for (let i = 0; i < note; i++, n++) if(sharps.includes(i % 7)) n++;
             if(pos.y < canvas.height * .7) {
-                if(pos.x % noteSize < noteSize *.25) n--;
-                else if(pos.x % noteSize > noteSize * .75) n++;
+                if(sharps.includes((note - 1) % 7) && pos.x % noteSize < noteSize *.25) n--;
+                else if(sharps.includes(note % 7) && pos.x % noteSize > noteSize * .75) n++;
             }
             playOsc(get('octave').value * 12 + 12 + n);
             touches[t.identifier] = get('octave').value * 12 + 12 + n;
@@ -202,8 +202,8 @@ function drawSynth() {
             let n = 0;
             for (let i = 0; i < note; i++, n++) if(sharps.includes(i % 7)) n++;
             if(pos.y < canvas.height * .7) {
-                if(pos.x % noteSize < noteSize *.25) n--;
-                else if(pos.x % noteSize > noteSize * .75) n++;
+                if(sharps.includes((note - 1) % 7) && pos.x % noteSize < noteSize *.25) n--;
+                else if(sharps.includes(note % 7) && pos.x % noteSize > noteSize * .75) n++;
             }
             const val = get('octave').value * 12 + 12 + n;
             if(touches[t.identifier] != val) {
@@ -248,6 +248,7 @@ function openFx(name) {
         const drawn = openNode['draw']();
         const editName = "<input type='text' id='label_" + name + "' value='" + openNode.label + "' onchange='setNodeLabel(\"" + name + "\", this.value);'></input>";
         get('fxEditor').innerHTML = editName + "<br>" + drawn['html'];
+        // XXX wtf
         if(drawn['canvas'] !== undefined) setTimeout(() => drawn['canvas'](), 1);
     }
     get('fxEditor').innerHTML += '<br>';
@@ -258,14 +259,8 @@ function setNodeLabel(name, label) {
     let node = getAudioNode(name);
     if(node === null) return;
     //TODO update all ui (names in mod matrix)
-    node.label = label;
-    const graphnode = fx.getNodes(name)[0];
-    if(graphnode != undefined) {
-        fx.getNode(graphnode).html = label;
-    }
+    node.setLabel(label);
     updateModUI(fx.getAllNodes());
-    let el = get("graph_" + name);
-    if(el !== undefined) el.innerHTML = label;
 }
 
 function closeFx() {
@@ -383,15 +378,6 @@ function stopOsc(note = 69) {
         getAudioNode(k).removeEventListener('valueChange', osc[note][k].valueListener);
     }
     delete osc[note];
-}
-
-function updateADSR() {
-    if(AC === null) return;
-
-    get("attackval").innerHTML = get("attack").value;
-    get("decayval").innerHTML = get("decay").value;
-    get("sustainval").innerHTML = get("sustain").value;
-    get("releaseval").innerHTML = get("release").value;
 }
 
 // XXX remove this

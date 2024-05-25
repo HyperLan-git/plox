@@ -681,7 +681,20 @@ function updateConstant(name) {
     if(fx == null) return;
     const newtype = get("consttype_" + name).value;
     if(newtype != fx.node.type) {
-        get("constdata_" + name).innerHTML = drawConstantData(name, fx.node.type, fx);
+        switch(newtype) {
+            case "CONSTANT":
+                fx.node.data = null;
+                break;
+            case "EXT_PARAM":
+                if(!(fx.node.data instanceof String))
+                    fx.node.data = "FREQUENCY";
+                break;
+            case "ENVELOPE":
+                if(!(fx.node.data instanceof Envelope))
+                    fx.node.data = new Envelope(10, 0, 1, 25);
+                break;
+        }
+        get("constdata_" + name).innerHTML = drawConstantData(name, newtype, fx);
         fx.node.type = newtype;
         return;
     }

@@ -33,9 +33,8 @@ function addMod(inNode, outNode, param, label = null) {
     const maxCtr = " - <input type='number' value='1' style='width:3em' id='mod_max_" + uid + "' " + upd + "></input>";
     row.id = "mod_" + uid;
     row.insertCell().innerHTML = "<input onchange='setNodeLabel(\"" + amount.name + "\", this.value);' value=\"" + amount.label + "\"></input>";
-    //TODO event listener pattern...
-    row.insertCell().innerHTML = inNode.label;
-    row.insertCell().innerHTML = outNode.label + " -> " + param;
+    row.insertCell().innerHTML = '<span class="name_' + inNode.name + '">' + inNode.label + '</span>';
+    row.insertCell().innerHTML = '<span class="name_' + outNode.name + '">' + outNode.label + "</span>" + " -> " + param;
     row.insertCell().innerHTML = drawParamUI(amount.node.gain.value, "mod_amount_" + uid, null, "updateModAmount('" + uid + "')", -1, 1, .01) + minCtr + maxCtr;
     row.insertCell().innerHTML = "<button onclick='removeModulation(\"" + uid + "\");'>DELETE</button>";
 
@@ -64,8 +63,8 @@ function listModulableNodes(nodes) {
 }
 
 function updateModUI(nodes) {
-    get("modIn").innerHTML = nodes.map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
-    get("modOut").innerHTML = listModulableNodes(nodes).map((x) => "<option value='" + x.name + "'>" + x.label + "</option>").join("");
+    get("modIn").innerHTML = nodes.map((x) => "<option value='" + x.name + "' class='name_" + x.name + "'>" + x.label + "</option>").join("");
+    get("modOut").innerHTML = listModulableNodes(nodes).map((x) => "<option value='" + x.name + "' class='name_" + x.name + "'>" + x.label + "</option>").join("");
 
     getModUiParams();
 }
@@ -77,4 +76,38 @@ function getModUiParams() {
 
     const type = node.fxtype;
     get("modParam").innerHTML = MODULATIONS[type].map((x) => "<option value='" + x + "'>" + x + "</option>").join("");
+}
+
+function serializeModulations() {
+    const res = [];
+    for(let k in modulations) {
+        res.push({
+            param: modulations[k].param,
+            in: modulations[k].in.name,
+            out: modulations[k].out.name,
+            amount: modulations[k].amount.node.gain.value,
+            label: modulations[k].amount.label
+        });
+    }
+    return res;
+}
+
+function deserializeModulations(nodes, mods) {
+    for(let k in modulations) {
+        removeModulation(k);
+    }
+    for(let k in mods) {
+        const m = mods[k];
+        const uid = addMod(nodes[m.in], nodes[m.out], m.param, m.label);
+        modulations[uid].amount.node.gain.value = m.amount;
+        if(m.amount > 1) {
+            get("mod_max_" + uid).value = Math.ceil(m.amount);
+            get("mod_amount_" + uid).max = Math.ceil(m.amount);
+        } else if(m.amount < -1) {
+            get("mod_min_" + uid).value = Math.floor(m.amount);
+            get("mod_amount_" + uid).min = Math.floor(m.amount);
+        }
+        get("mod_amount_" + uid).value = m.amount;
+        updateModAmount(uid);
+    }
 }

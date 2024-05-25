@@ -7,6 +7,7 @@ body {
     background-color: transparent;
     display: flex;
     flex-direction: column;
+    user-select: none;
 }
 
 h1,
@@ -20,6 +21,7 @@ caption {
     color: #000000;
     padding: 2%;
     top: 1%;
+    user-select: none;
     /*border-width: 5px;
     border-color: rgb(19, 11, 97);
     border-style: groove;*/
