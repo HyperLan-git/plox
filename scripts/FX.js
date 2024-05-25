@@ -540,7 +540,7 @@ class FXGraph {
                 }
             }
             for(let k in this.nodes) {
-                if(this.nodes[k].gid === e) {
+                if(this.nodes[k].gid == e) {
                     this.deleteNode(k);
                     return;
                 }
