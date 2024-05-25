@@ -78,6 +78,15 @@
         <tbody id="modList"></tbody>
     </table>
     <div>
+        <p id="play">
+            Master fader <input type="range" id="fader" min="-40" max="0" step="0.1" value="-40"/><span id="fadervalue">-40 db</span><br>
+            Octave <input type="number" value="4" id="octave" min="0" max="10" onchange="drawSynth(); for(let k in osc) stopOsc(Number(k));"></input>&nbsp;
+            <button onclick="get('octave').value = Number(get('octave').value) + 1;get('octave').dispatchEvent(new Event('change'));">+ 1</button>&nbsp;
+            <button onclick="get('octave').value -= 1;get('octave').dispatchEvent(new Event('change'));">- 1</button><br>
+            <canvas id="synth" style="min-width: 500px;" width="700" height="200"></canvas> <button onclick="get('play').requestFullscreen()">fullscreen</button>
+        </p>
+    </div>
+    <div>
         <p>
             <button id="export" onclick="export_all()">EXPORT</button>&nbsp;
             <button id="import" onclick="import_all()">IMPORT</button>

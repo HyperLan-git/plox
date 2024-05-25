@@ -683,6 +683,7 @@ function updateConstant(name) {
     if(newtype != fx.node.type) {
         switch(newtype) {
             case "CONSTANT":
+                fx.node.data = null;
                 break;
             case "EXT_PARAM":
                 if(!(fx.node.data instanceof String))
