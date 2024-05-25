@@ -633,6 +633,11 @@ class FXGraph {
     serialize() {
         const nodes = {};
         for(let k in this.nodes) nodes[k] = this.nodes[k].serialize();
+        const pos = {};
+        for(let k in this.nodes) {
+            const node = this.drawflow.getNodeFromId(this.nodes[k].gid);
+            pos[k] = {x: node.pos_x, y: node.pos_y};
+        }
         const connections = {};
         for(let k in this.nodes) {
             for(let k2 in this.nodes[k].inputs) {
@@ -649,7 +654,7 @@ class FXGraph {
         for(let k in this.defaultNodes) {
             defaults.push({label:k, name: this.defaultNodes[k].name});
         }
-        return {nodes: nodes, connections: connections, output: this.outputNode.name, defaultNodes: defaults};
+        return {nodes: nodes, pos: pos, connections: connections, output: this.outputNode.name, defaultNodes: defaults};
     }
 
     deserialize(json) {
@@ -661,28 +666,24 @@ class FXGraph {
         }
         this.outputNode.disconnectAll();
         const nodes = {};
-        let y = 0, x = 0;
         for(let k in json.nodes) {
+            if(k == json.output) continue;
             nodes[k] = deserializeFX(AC, json.nodes[k]);
-            this.nodes[nodes[k].name] = nodes[k];
 
-            if(k != json.output)
-                nodes[k].gid = this.drawflow.addNode(nodes[k].name, nodes[k].node.numberOfInputs, nodes[k].node.numberOfOutputs,
-                    x * 300, y * 100, "", {node: nodes[k].name}, "<span class='name_" + nodes[k].name + "'>" + nodes[k].label + "</span>", false);
-            x++;
-            if(x > 3) {
-                x = 0;
-                y++;
-            }
+            nodes[k].gid = this.drawflow.addNode(nodes[k].name, nodes[k].node.numberOfInputs, nodes[k].node.numberOfOutputs,
+                json.pos[k].x, json.pos[k].y, "", {node: nodes[k].name}, "<span class='name_" + nodes[k].name + "'>" + nodes[k].label + "</span>", false);
+
+            this.nodes[nodes[k].name] = nodes[k];
         }
 
         for(let k in json.connections) {
             const con = json.connections[k];
-            if(nodes[con.out] == undefined || nodes[con.in] == undefined) continue;
             if(con.in == json.output) {
+                if(nodes[con.out] == undefined) continue;
                 nodes[con.out].connect(this.outputNode, con.output, con.input);
-                this.drawflow.addConnection(this.outputNode.gid, nodes[con.in].gid, 'output_' + String(con.output + 1), 'input_' + String(con.input + 1));
+                this.drawflow.addConnection(nodes[con.out].gid, this.outputNode.gid, 'output_' + String(con.output + 1), 'input_' + String(con.input + 1));
             } else {
+                if(nodes[con.out] == undefined || nodes[con.in] == undefined) continue;
                 nodes[con.out].connect(nodes[con.in], con.output, con.input);
                 this.drawflow.addConnection(nodes[con.out].gid, nodes[con.in].gid, 'output_' + String(con.output + 1), 'input_' + String(con.input + 1));
             }

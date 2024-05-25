@@ -43,7 +43,6 @@ async function import_all() {
     const header = lines[0];
     const data = JSON.parse(lines[1]);
 
-    console.log(header.substring(3));
     switch(header.substring(3)) {
         case '1':
             const nodes = fx.deserialize(data.fx);
