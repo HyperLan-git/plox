@@ -77,7 +77,7 @@ function drawDistortion(name) {
         '<option value="sine">Sine x2</option>' +
         '<option value="fold">Triangle fold</option>' +
         '</select><br>' +
-        'Arbitrary function (WARNING : USES EVAL) f(x) -> <input type="text" id="distf_' + name + '" ' +
+        'Arbitrary function (don\'t put code in here) f(x) -> <input type="text" id="distf_' + name + '" ' +
         'onchange="distortionFunction(\'' + name + '\', this.value, get(\'distfcount_' + name + '\').value);"></input> ' +
         'Points : <input type="number" id="distfcount_' + name + '"></input>' +
         'Oversampling : <select id="oversample_' + name + '" ' +
@@ -440,8 +440,11 @@ function drawPanner(name) {
 function updatePanner(name) {
     if(AC === null) return;
 
-    fx.setParam('pan', get('pan_' + name).value);
-    get('value_pan_' + name).innerHTML = panToText(getAudioNode(name).node.pan.value);
+    let fx = getAudioNode(name);
+    const pan = get('pan_' + name).value;
+
+    fx.setParam('pan', pan);
+    get('value_pan_' + name).innerHTML = panToText(pan);
 }
 
 function drawAnalyser(name) {
@@ -451,9 +454,12 @@ function drawAnalyser(name) {
     const fftSize = fx.node.fftSize;
     return {
         html: "<canvas id='analyser_" + name + "' width='600' height='450'></canvas>" +
-        "Type : <select id='analysertype_" + name + "' onchange='updateAnalyser(\"" + name + "\");'><option value='fft'>Spectrum</option><option value='oscilloscope'>Oscilloscope</option></select><br>" +
+        "Type : <select id='analysertype_" + name + "' onchange='updateAnalyser(\"" + name + "\");'>" +
+        "<option value='fft' " + (fx.node.type == 'fft' ? 'selected':'') + ">Spectrum</option>" +
+        "<option value='oscilloscope'" + (fx.node.type == 'oscilloscope' ? 'selected':'') + ">Oscilloscope</option>" +
+        "</select><br>" +
         "FFT size : 2^<input onchange='updateAnalyser(\"" + name + "\");' type='number' id='analysersize_" + name + "' min='5' max='15' step='1' value='" + Math.round(Math.log2(fftSize)) + "'></input><br>" +
-        "Db range : <input onchange='updateAnalyser(\"" + name + "\");' type='number' id='analysermin_" + name + "' min='-100' max='0' value='" + fx.node.minDecibels + "'></input> - " +
+        "Db range : <input onchange='updateAnalyser(\"" + name + "\");' type='number' id='analysermin_" + name + "' min='-100' max='-31' value='" + fx.node.minDecibels + "'></input> - " +
         "<input onchange='updateAnalyser(\"" + name + "\");' type='number' min='-100' max='0' id='analysermax_" + name + "' value='" + fx.node.maxDecibels + "'></input><br>" +
         "Smoothing " + drawParamUI(fx.node.smoothingTimeConstant, "analysersmooth_" + name, null, "updateAnalyser('" + name + "')", 0, 1, 0.01) + "<br>" +
         "Slope " + drawParamUI(25, "analyserslope_" + name, null, "updateAnalyser('" + name + "')", 0, 50, 1),
@@ -465,11 +471,13 @@ function updateAnalyser(name) {
     if(AC === null) return;
     const fx = getAudioNode(name);
 
+    fx.setValue('type', get("analysertype_" + name).value);
     fx.setValue('fftSize', Math.pow(2, get("analysersize_" + name).value));
     fx.setValue('minDecibels', get("analysermin_" + name).value);
     fx.setValue('maxDecibels', get("analysermax_" + name).value);
-    fx.setValue('fftSize', get("analysersmooth_" + name).value);
+    fx.setValue('smoothingTimeConstant', get("analysersmooth_" + name).value);
     get("value_analysersmooth_" + name).innerHTML = fx.node.smoothingTimeConstant;
+    get("value_analyserslope_" + name).innerHTML = get("analyserslope_" + name).value;
     drawAnalyserCanvas(name);
 }
 
@@ -493,7 +501,7 @@ function drawAnalyserCanvas(name) {
 
     ctx.clearRect(0, h * .95, w, h);
 
-    if(get("analysertype_" + name).value == 'fft') {
+    if(fx.node.type == 'fft') {
         const HZ_SCALE = [5, 12, 32, 55, 90, 140, 210, 310, 440, 610, 900, 1250, 1700, 2400, 3400, 4800, 6700, 9500, 13500, 19000];
         ctx.lineWidth = 1;
         ctx.strokeStyle = "black";
@@ -563,7 +571,13 @@ function updateAnalyserCanvas(name) {
     let y = arr[0] * hh * .9 + hh * .9;
     if(y >= h * .9) y = h * .9;
     ctx.moveTo(0, y);
-    for(let i = 1; i < w; i++) {
+    if(w > arr.length) {
+        for(let i = 0; i < arr.length; i++) {
+            y = arr[i] * hh * .9 + hh * .9;
+            if(y >= h * .9) y = h * .9
+            ctx.lineTo(i * w / arr.length, y);
+        }
+    } else for(let i = 1; i < w; i++) {
         y = arr[Math.floor(arr.length * i / w)] * hh * .9 + hh * .9;
         if(y >= h * .9) y = h * .9
         ctx.lineTo(i, y);
@@ -577,34 +591,9 @@ function drawConvolver(name) {
     const fx = getAudioNode(name);
 
     return {
-        html: "Convolution : <button onclick='updateConvolverBuffer(\"" + name + "\")'>Choose Impulse Response</button><br>" +
-        "Normalize ? <input onchange='updateConvolver(\"" + name + "\")' type='checkbox' " + (fx.node.normalize ? 'checked' : '') + " id='convnorm_" + name + "'>"
+        html: "Convolution : <button onclick='updateNodeBuffer(\"" + name + "\")'>Choose Impulse Response</button><br>" +
+        "Normalize ? <input onchange='updateConvolver(\"" + name + "\")' onclick='updateConvolver(\"" + name + "\")' type='checkbox' " + (fx.node.normalize ? 'checked' : '') + " id='convnorm_" + name + "'>"
     };
-}
-
-async function updateConvolverBuffer(name) {
-    if(AC === null) return;
-    const fx = getAudioNode(name);
-    if(fx == null) return;
-
-    const pickerOpts = {
-        types: [
-            {
-                description: "Audio wav file",
-                accept: {
-                    "audio/wav": [".wav"],
-                },
-            },
-        ],
-        excludeAcceptAllOption: true,
-        multiple: false
-    };
-
-    const contents = await window.showOpenFilePicker(pickerOpts).then((handle) => {
-        return handle[0].getFile().then((file) => file.arrayBuffer());
-    });
-
-    fx.setValue('buffer', await AC.decodeAudioData(contents));
 }
 
 function updateConvolver(name) {
@@ -716,6 +705,68 @@ function updateConstant(name) {
     }
 }
 
+function drawBufferSource(name) {
+    const fx = getAudioNode(name);
+    return {
+        html: "Sample : <button onclick='updateNodeBuffer(\"" + name + "\")'>Choose Sample</button><br>" +
+            "Detune : " + drawParamUI(fx.node.detune.value, "bufdetune_" + name, "cent", "updateBufferSource('" + name + "')", -1200, 1200, 1) +
+            "<br>Playback rate : " + drawParamUI(fx.node.playbackRate.value, "bufrate_" + name, "", "updateBufferSource('" + name + "')", 0, 1, .01) +
+            "<br>Loop? <input type='checkbox' onchange='updateBufferSource(\"" + name + "\")' onclick='updateBufferSource(\"" + name + "\")' id='bufloop_" + name + "' " + (fx.node.loop ? "checked" : "") + "></input>" +
+            "<br>Loop start : " + drawParamUI(fx.node.loopStart, "bufstart_" + name, "", "updateBufferSource('" + name + "')", 0, 1, .01) +
+            "<br>Loop end : " + drawParamUI(fx.node.loopEnd, "bufend_" + name, "", "updateBufferSource('" + name + "')", 0, 1, .01)
+    };
+}
+
+async function updateNodeBuffer(name) {
+    if(AC === null) return;
+    const fx = getAudioNode(name);
+    if(fx == null) return;
+
+    const pickerOpts = {
+        types: [
+            {
+                description: "Audio wav file",
+                accept: {
+                    "audio/wav": [".wav"],
+                    "audio/mp3": [".mp3"],
+                    "audio/aac": [".m4a"]
+                },
+            },
+        ],
+        excludeAcceptAllOption: true,
+        multiple: false
+    };
+
+    const contents = await window.showOpenFilePicker(pickerOpts).then((handle) => {
+        return handle[0].getFile().then((file) => file.arrayBuffer());
+    });
+
+    fx.setValue('buffer', await AC.decodeAudioData(contents));
+}
+
+function updateBufferSource(name) {
+    if(AC === null) return;
+
+    const fx = getAudioNode(name);
+    if(fx == null) return;
+
+    const detune = get("bufdetune_" + name).value,
+        rate = get("bufrate_" + name).value,
+        start = get("bufstart_" + name).value,
+        end = get("bufend_" + name).value;
+
+    fx.setParam("detune", detune);
+    fx.setParam("playbackRate", rate);
+    fx.setValue("loop", get("bufloop_" + name).checked);
+    fx.setValue("loopStart", start);
+    fx.setValue("loopEnd", end);
+
+    get("value_bufdetune_" + name).innerHTML = detune;
+    get("value_bufrate_" + name).innerHTML = rate;
+    get("value_bufstart_" + name).innerHTML = start;
+    get("value_bufend_" + name).innerHTML = end;
+}
+
 const FX_DRAW = {
     "gain": drawGain,
     "delay": drawDelay,
@@ -726,5 +777,6 @@ const FX_DRAW = {
     "analyser": drawAnalyser,
     "convolver": drawConvolver,
     "oscillator": drawOscillator,
-    "constant": drawConstant
+    "constant": drawConstant,
+    "audiobuffersource": drawBufferSource
 };

@@ -41,6 +41,7 @@
                 <option value="oscillator">Oscillator</option>
                 <option value="gain">Gain</option>
                 <option value="constant">Constant source</option>
+                <option value="audiobuffersource">Audio buffer source</option>
                 <option value="biquadfilter">FIR Filter</option>
                 <!-- XXX <option value="filter">IIR Filter</option>-->
                 <option value="distortion">Distortion</option>
@@ -58,7 +59,7 @@
         <div id="drawflow" style="border-style: outset; background-color: grey; height: 500px; width: 99.65%;"></div>
         <p>
             <span id="fxEditor"></span><br>
-            <select id="modIn"></select> -> <select id="modOut" onchange="getModUiParams()"></select> Param : <select id="modParam"></select><button onclick="addModulation()">Add modulation</button>
+            <select id="modIn"></select> -> <select id="modOut" onchange="getModUiParams()"></select> Param : <select id="modParam"></select><button onclick="addModulation(); updateModUI(fx.getAllNodes());">Add modulation</button>
         </p>
     </div>
     <table id="mod">

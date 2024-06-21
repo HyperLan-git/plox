@@ -26,7 +26,7 @@ const PARAMS = {
     "iirfilter": [],
     "compressor": ["threshold", "knee", "ratio", "attack", "release"],
     "stereopanner": ["pan"],
-    "analyser": ["fftSize", "minDecibels", "maxDecibels", "smoothingTimeConstant"],
+    "analyser": ["type", "fftSize", "minDecibels", "maxDecibels", "smoothingTimeConstant"],
     "convolver": ["buffer", "normalize"],
     "oscillator": ["detune", "frequency", "type"],
     "audiobuffersource": ["detune", "playbackRate", "buffer", "loop", "loopStart", "loopEnd"],
@@ -299,7 +299,7 @@ class FX extends EventTarget {
                 this.node.disconnect(v["fx"].node, v["idx"]);
         }
 
-        this.filterConnections(((v) => v["idx"] == output), params ? ((v) => v["idx"] == output) : (() => false));
+        this.filterConnections(((v) => v["idx"] == output), params ? ((v) => v["idx"] == output) : null);
     }
 
     disconnectOutputFx(fx, output, params = true) {
@@ -310,17 +310,17 @@ class FX extends EventTarget {
         } else
             this.node.disconnect(fx, output);
 
-        this.filterConnections(((v) => v["idx"] == output && v["fx"] == fx), params ? ((v) => v["idx"] == output && v["fx"] == fx) : (() => false));
+        this.filterConnections(((v) => v["idx"] == output && v["fx"] == fx), params ? ((v) => v["idx"] == output && v["fx"] == fx) : null);
     }
 
     disconnectFx(fx, params = true) {
         if(params) for(const v of this.outputParams) if(v["fx"] == fx)
             this.node.disconnect(fx.node[v["param"]]);
         this.node.disconnect(fx.node);
-        this.filterConnections(((v) => v["fx"] == fx), params ? ((v) => v["fx"] == fx) : (() => false));
+        this.filterConnections(((v) => v["fx"] == fx), params ? ((v) => v["fx"] == fx) : null);
     }
 
-    filterConnections(filter, paramsFilter) {
+    filterConnections(filter, paramsFilter = null) {
         for(let k = 0; k < this.outputs.length;) {
             const v = this.outputs[k];
             if(!filter(v)) {
@@ -330,6 +330,7 @@ class FX extends EventTarget {
             delete v.fx.inputs[this.name + v["input"]];
             this.outputs.splice(k, 1);
         }
+        if(paramsFilter == null) return;
         for(let k = 0; k < this.outputParams.length;) {
             const v = this.outputParams[k];
             if(!paramsFilter(v)) {
@@ -341,8 +342,8 @@ class FX extends EventTarget {
         }
     }
 
-    disconnectInputs() {
-        for(const k in this.inputParams) {
+    disconnectInputs(params = true) {
+        if(params) for(const k in this.inputParams) {
             const v = this.inputParams[k];
             v["fx"].disconnect(this.node[v.param]);
         }
@@ -374,7 +375,7 @@ class FX extends EventTarget {
         }
 
         this.node.disconnect(fx.node, output, input);
-        this.filterConnections(((v) => v["fx"] == fx && v["idx"] == output && v["input"] == input), (() => false));
+        this.filterConnections(((v) => v["fx"] == fx && v["idx"] == output && v["input"] == input), null);
     }
 
     copy(copyConnections = false) {
@@ -427,7 +428,9 @@ class FX extends EventTarget {
         const params = {};
 
         for(let p of PARAMS[this.fxtype]) {
-            if(MODULATIONS[this.fxtype].includes(p))
+            if(p == "buffer")
+                params[p] = {audioParam: false, value: null};
+            else if(MODULATIONS[this.fxtype].includes(p))
                 params[p] = {audioParam: true, value: this.node[p].value};
             else
                 params[p] = {audioParam: false, value: this.node[p]};
@@ -526,22 +529,28 @@ class FXGraph {
         this.drawflow.on("nodeRemoved", (e) => {
             if(e == this.outputNode.gid) {
                 this.outputNode.gid = this.drawflow.addNode("output", 1, 0, 1000, 0, "", {node: this.outputNode.name}, "Output", false);
-                this.outputNode.disconnectInputs();
+                this.outputNode.disconnectInputs(false);
                 return;
             }
             for(let k in this.defaultNodes) {
-                if(this.defaultNodes[k].gid === e) {
+                if(this.defaultNodes[k].gid == e) {
                     this.defaultNodes[k].gid = 
                         this.drawflow.addNode(this.defaultNodes[k].name, this.defaultNodes[k].node.numberOfInputs, this.defaultNodes[k].node.numberOfOutputs,
                                 300, 200, "", {node: this.defaultNodes[k].name}, "<span class='name_" + this.defaultNodes[k].name + "'>" + this.defaultNodes[k].label, false);
-                    this.defaultNodes[k].disconnectInputs();
+                    this.defaultNodes[k].disconnectInputs(false);
                     this.defaultNodes[k].disconnect();
+                    for(let k2 in modulations) {
+                        if(modulations[k2].in == this.defaultNodes[k] || modulations[k2].out == this.defaultNodes[k])
+                            removeModulation(k2);
+                    }
+                    //TODO delete modulation if one is present
                     return;
                 }
             }
             for(let k in this.nodes) {
                 if(this.nodes[k].gid == e) {
                     this.deleteNode(k);
+                    updateModUI(this.getAllNodes());
                     return;
                 }
             }

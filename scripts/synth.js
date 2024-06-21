@@ -32,6 +32,10 @@ function getAudioNode(name) {
     return fx.getAudioNode(name);
 }
 
+function getAllNodes() {
+    return fx.getAllNodes().concat(getModulationNodes());
+}
+
 function initAudio() {
     AC = new AudioContext();
 
@@ -85,18 +89,19 @@ function initAudio() {
     adsrConstant.label = "env1";
     fmfreq.label = "fmcontrol";
 
-    addMod(freqConstant, osc1, "frequency", "osc1_freq");
-    addMod(freqConstant, osc2, "frequency", "osc2_freq");
-    addMod(adsrConstant, adsr, "gain", "envelope1");
-    addMod(freqConstant, fmfreq, "gain", "osc2_fm_amp");
-    addMod(fmfreq, osc1, "frequency", "osc2_to_osc1_fm");
-
     fx = new FXGraph(AC, drawflow,
         [osc1, adsr,
         freqConstant, adsrConstant,
         osc2, fmfreq,
         constantSource]);
     fx.outputNode.label = "output_gain";
+
+    const nodes = fx.getAllNodes();
+    addMod(nodes, freqConstant, osc1, "frequency", "osc1_freq");
+    addMod(nodes, freqConstant, osc2, "frequency", "osc2_freq");
+    addMod(nodes, adsrConstant, adsr, "gain", "envelope1");
+    addMod(nodes, freqConstant, fmfreq, "gain", "osc2_fm_amp");
+    addMod(nodes, fmfreq, osc1, "frequency", "osc2_to_osc1_fm");
 
     adsr.connect(fx.getOutput());
     fx.connectGraphNode(adsr, fx.getOutput());
@@ -228,6 +233,7 @@ function addFx(type) {
 
     const audioNode = new node(AC);
     if(type === "constant") audioNode.type = "CONSTANT";
+    if(type === "analyser") audioNode.type = "fft";
     fx.addNode(audioNode);
     updateModUI(fx.getAllNodes());
 }
@@ -258,7 +264,6 @@ function openFx(name) {
 function setNodeLabel(name, label) {
     let node = getAudioNode(name);
     if(node === null) return;
-    //TODO update all ui (names in mod matrix)
     node.setLabel(label);
     updateModUI(fx.getAllNodes());
 }
@@ -316,7 +321,7 @@ function playOsc(note = 69) {
 
     const time = AC.currentTime;
     for(let k in nodes) {
-        if(nodes[k].fxtype == 'oscillator') nodes[k].node.start(time);
+        if(nodes[k].fxtype == 'oscillator' || nodes[k].fxtype == 'audiobuffersource') nodes[k].node.start(time);
         else if(nodes[k].fxtype == 'constant') {
             switch(nodes[k].node.type) {
                 case "CONSTANT":
@@ -372,7 +377,8 @@ function stopOsc(note = 69) {
         }
     }, maxEnv);
     for(let k in osc[note]) {
-        if(osc[note][k].fxtype == 'oscillator') nodes[k].node.stop(AC.currentTime + maxEnv / 1000);
+        if(osc[note][k].fxtype == 'oscillator' || osc[note][k].fxtype == 'audiobuffersource')
+            nodes[k].node.stop(AC.currentTime + maxEnv / 1000);
 
         getAudioNode(k).removeEventListener('paramChange', osc[note][k].paramListener);
         getAudioNode(k).removeEventListener('valueChange', osc[note][k].valueListener);
@@ -440,17 +446,16 @@ async function mainloop() {
         ctx.fillRect(0, 0, w, spectrum.height);
         ctx.fillStyle = "grey";
         ctx.fillRect(0, 0, w, h);
-        // TODO use byte values instead
+        // XXX use byte values instead
         masterFFTAnalyser.getFloatFrequencyData(arr);
         ctx.fillStyle = "red";
         const MIN_DB = -40;
         for(let i = 0; i < arr.length; i++) {
-            let y = arr[i] / MIN_DB * h + h * 1.65;
+            let y = arr[i] / MIN_DB * h - h * .35;
+            if(!isFinite(y) || y >= h) continue;
             let x1 = linearToLog(i * width + 1, 1, w),
                 x2 = linearToLog((i + 1) * width + 1, 1, w);
-            y -= 2 * h;
             //y -= (x1 + x2) / w * h; // The higher frequencies' slope
-            if(!isFinite(y) || y >= h) y = h;
             ctx.fillRect(x1, y, x2 - x1, h - y);
         }
         const HZ_SCALE = [5, 12, 32, 55, 90, 140, 210, 310, 440, 610, 900, 1250, 1700, 2400, 3400, 4800, 6700, 9500, 13500, 19000];
