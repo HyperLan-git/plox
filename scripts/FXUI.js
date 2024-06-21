@@ -660,6 +660,9 @@ function drawConstantData(name, type, fx) {
                 'Decay <input type="range" id="decay_' + name + '" min="0" max="4000" step="1" value="' + data.decay + '" ' + upd + '></input><span id="decayval_' + name + '">' + data.decay + '</span> ms<br>' +
                 'Sustain <input type="range" id="sustain_' + name + '" min="0" max="1" step="0.01" value="' + data.sustain + '" ' + upd + '></input><span id="sustainval_' + name + '">' + data.sustain + '</span><br>' +
                 'Release <input type="range" id="release_' + name + '" min="0" max="4000" step="1" value="' + data.release + '" ' + upd + '></input><span id="releaseval_' + name + '">' + data.release + '</span> ms<br>';
+        case "MIDI_CC":
+            return "CC number <input type='number' min='0' max='127' id='constmidicc_" + name + "' onchange='updateConstant(\"" + name + "\")' value='" + data + "'></input>&nbsp;" +
+                "Auto-bind : <input type='checkbox' onclick='bindMIDICC(\"" + name + "\")' id='autobindcc_" + name + "'></input>";
     }
 }
 
@@ -682,6 +685,10 @@ function updateConstant(name) {
                 if(!(fx.node.data instanceof Envelope))
                     fx.node.data = new Envelope(10, 0, 1, 25);
                 break;
+            case "MIDI_CC":
+                if(!(fx.node.data instanceof Number))
+                    fx.node.data = 0;
+                break;
         }
         get("constdata_" + name).innerHTML = drawConstantData(name, newtype, fx);
         fx.node.type = newtype;
@@ -701,6 +708,9 @@ function updateConstant(name) {
             get("decayval_" + name).innerHTML = get('decay_' + name).value;
             get("sustainval_" + name).innerHTML = get('sustain_' + name).value;
             get("releaseval_" + name).innerHTML = get('release_' + name).value;
+            break;
+        case "MIDI_CC":
+            fx.node.data = Number(get("constmidicc_" + name).value);
             break;
     }
 }

@@ -55,12 +55,14 @@ const CONST_NODE_TYPE = [
     "ENVELOPE",
     //"RANDOM",
     "EXT_PARAM",
-    "CONSTANT"
+    "CONSTANT",
+    "MIDI_CC"
 ];
 
 const CONST_EXTERNAL_PARAM = [
     "FREQUENCY",
     "NOTE",
+    //"PITCH_SHIFT",
     //"VELOCITY"
 ];
 

@@ -16,7 +16,7 @@ let osc1 = null, adsr = null;
 let osc2 = null, fmfreq = null;
 let osc = {};
 
-let midi = [];
+let midi = null;
 
 function get(id) {
     return document.getElementById(id);
@@ -111,16 +111,21 @@ function initAudio() {
     updateModUI(fx.getAllNodes());
 
     drawSynth();
+}
 
-    midi = null;
+function initMIDI() {
     navigator.requestMIDIAccess().then((access) => {
-        midi = access.inputs;
-        console.log(midi);
+        midi = access;
         access.inputs.forEach((e) => {
             e.onmidimessage = onMIDIMessage;
-            console.log(e);
         });
     });
+}
+
+let midiCCbind = null;
+
+function bindMIDICC(name) {
+    midiCCbind = name;
 }
 
 function onMIDIMessage(event) {
@@ -129,6 +134,30 @@ function onMIDIMessage(event) {
         str += `0x${character.toString(16)} `;
     }
     console.log(str);
+
+    const nodes = fx.getAllNodes();
+    if(event.data[0] == 0xB0) {
+        if(midiCCbind != null) {
+            get("constmidicc_" + midiCCbind).value = event.data[1];
+            get("autobindcc_" + midiCCbind).checked = false;
+            midiCCbind = null;
+        }
+        for(let k in nodes) {
+            if(nodes[k].fxtype == "constant" && nodes[k].node.type == "MIDI_CC" && nodes[k].node.data == event.data[1]) {
+                nodes[k].setParam("offset", event.data[2] / 127.);
+            }
+        }
+    }
+
+    //TODO handle vel
+    if((event.data[0] & 0xF0) == 0x90) {
+        if(event.data[2] == 0)
+            stopOsc(event.data[1]);
+        else
+            playOsc(event.data[1]);
+    } else if((event.data[0] & 0xF0) == 0x80) {
+        stopOsc(event.data[1]);
+    }
 }
 
 function drawSynth() {
@@ -345,6 +374,7 @@ function playOsc(note = 69) {
         else if(nodes[k].fxtype == 'constant') {
             switch(nodes[k].node.type) {
                 case "CONSTANT":
+                case "MIDI_CC":
                     break;
                 case "EXT_PARAM":
                     switch(nodes[k].node.data) {
