@@ -55,12 +55,14 @@ const CONST_NODE_TYPE = [
     "ENVELOPE",
     //"RANDOM",
     "EXT_PARAM",
-    "CONSTANT"
+    "CONSTANT",
+    "MIDI_CC"
 ];
 
 const CONST_EXTERNAL_PARAM = [
     "FREQUENCY",
     "NOTE",
+    //"PITCH_SHIFT",
     //"VELOCITY"
 ];
 
@@ -543,7 +545,6 @@ class FXGraph {
                         if(modulations[k2].in == this.defaultNodes[k] || modulations[k2].out == this.defaultNodes[k])
                             removeModulation(k2);
                     }
-                    //TODO delete modulation if one is present
                     return;
                 }
             }
