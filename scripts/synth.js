@@ -16,6 +16,8 @@ let osc1 = null, adsr = null;
 let osc2 = null, fmfreq = null;
 let osc = {};
 
+let midi = [];
+
 function get(id) {
     return document.getElementById(id);
 }
@@ -109,6 +111,24 @@ function initAudio() {
     updateModUI(fx.getAllNodes());
 
     drawSynth();
+
+    midi = null;
+    navigator.requestMIDIAccess().then((access) => {
+        midi = access.inputs;
+        console.log(midi);
+        access.inputs.forEach((e) => {
+            e.onmidimessage = onMIDIMessage;
+            console.log(e);
+        });
+    });
+}
+
+function onMIDIMessage(event) {
+    let str = `MIDI message received at timestamp ${event.timeStamp}[${event.data.length} bytes]: `;
+    for (const character of event.data) {
+        str += `0x${character.toString(16)} `;
+    }
+    console.log(str);
 }
 
 function drawSynth() {

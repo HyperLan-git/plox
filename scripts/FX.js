@@ -543,7 +543,6 @@ class FXGraph {
                         if(modulations[k2].in == this.defaultNodes[k] || modulations[k2].out == this.defaultNodes[k])
                             removeModulation(k2);
                     }
-                    //TODO delete modulation if one is present
                     return;
                 }
             }
