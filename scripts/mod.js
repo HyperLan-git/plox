@@ -18,11 +18,11 @@ function addModulation() {
 }
 
 function getModOutSelector(nodes, outNode = null) {
-    return nodes.map((x) => "<option value='" + x.name + "' class='name_" + x.name + "' "  + (x.name == outNode ? 'selected':'') + ">" + x.label + "</option>").join("");
+    return listModulableNodes(nodes).map((x) => "<option value='" + x.name + "' class='name_" + x.name + "' "  + (x.name == outNode ? 'selected':'') + ">" + x.label + "</option>").join("");
 }
 
 function getModInSelector(nodes, inNode = null) {
-    return listModulableNodes(nodes).map((x) => "<option value='" + x.name + "' class='name_" + x.name + "' "  + (x.name == inNode ? 'selected':'') + ">" + x.label + "</option>").join("");
+    return nodes.map((x) => "<option value='" + x.name + "' class='name_" + x.name + "' "  + (x.name == inNode ? 'selected':'') + ">" + x.label + "</option>").join("");
 }
 
 function getModParamSelector(outNode, param = null) {
@@ -50,7 +50,7 @@ function addMod(nodes, inNode, outNode, param, label = null) {
     row.id = "mod_" + uid;
     row.insertCell().innerHTML = "<input onchange='setNodeLabel(\"" + amount.name + "\", this.value);' value=\"" + amount.label + "\"></input>";
     row.insertCell().innerHTML = "<select id='modin_" + uid + "' onchange='updateMod(\"" + uid + "\")'>" + getModInSelector(nodes, inNode.name) + "</select>";
-    row.insertCell().innerHTML = "<select id='modout_" + uid + "' onchange='updateMod(\"" + uid + "\")'>" + getModOutSelector(listModulableNodes(nodes), outNode.name) + "</select> -> <select id='modparam_" + uid + "' onchange='updateMod(\"" + uid + "\")'>" + getModParamSelector(outNode.name, param) + "</select>";
+    row.insertCell().innerHTML = "<select id='modout_" + uid + "' onchange='updateMod(\"" + uid + "\")'>" + getModOutSelector(nodes, outNode.name) + "</select> -> <select id='modparam_" + uid + "' onchange='updateMod(\"" + uid + "\")'>" + getModParamSelector(outNode.name, param) + "</select>";
     row.insertCell().innerHTML = drawParamUI(amount.node.gain.value, "mod_amount_" + uid, null, "updateModAmount('" + uid + "')", -1, 1, .01) + minCtr + maxCtr;
     row.insertCell().innerHTML = "<button onclick='removeModulation(\"" + uid + "\");'>DELETE</button>";
 
@@ -67,7 +67,7 @@ function updateMod(id) {
 
     get("modparam_" + id).innerHTML = getModParamSelector(get("modout_" + id).value, param);
     modulations[id].in = fx.getAudioNode(get("modin_" + id).value);
-    modulations[id].out = fx.getAudioNode(get("modout_" + id).value);
+    modulations[id].out = getAudioNode(get("modout_" + id).value);
     modulations[id].param = get("modparam_" + id).value;
 
     modulations[id].in.connect(modulations[id].amount);
@@ -95,12 +95,12 @@ function listModulableNodes(nodes) {
 }
 
 function updateModUI(nodes) {
-    get("modIn").innerHTML = nodes.map((x) => "<option value='" + x.name + "' class='name_" + x.name + "'>" + x.label + "</option>").join("");
-    get("modOut").innerHTML = listModulableNodes(nodes).map((x) => "<option value='" + x.name + "' class='name_" + x.name + "'>" + x.label + "</option>").join("");
+    get("modIn").innerHTML = getModInSelector(nodes);
+    get("modOut").innerHTML = getModOutSelector(nodes);
 
     for(let id in modulations) {
         get("modin_" + id).innerHTML = getModInSelector(nodes, modulations[id].in.name);
-        get("modout_" + id).innerHTML = getModOutSelector(listModulableNodes(nodes), modulations[id].out.name);
+        get("modout_" + id).innerHTML = getModOutSelector(nodes, modulations[id].out.name);
     }
     getModUiParams();
 }
