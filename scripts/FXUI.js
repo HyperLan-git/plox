@@ -573,12 +573,12 @@ function updateAnalyserCanvas(name) {
     ctx.moveTo(0, y);
     if(w > arr.length) {
         for(let i = 0; i < arr.length; i++) {
-            y = arr[i] * hh * .9 + hh * .9;
-            if(y >= h * .9) y = h * .9
+            y = -arr[i] * hh * .9 + hh * .9;
+            if(y >= h * .9) y = h * .9;
             ctx.lineTo(i * w / arr.length, y);
         }
     } else for(let i = 1; i < w; i++) {
-        y = arr[Math.floor(arr.length * i / w)] * hh * .9 + hh * .9;
+        y = -arr[Math.floor(arr.length * i / w)] * hh * .9 + hh * .9;
         if(y >= h * .9) y = h * .9
         ctx.lineTo(i, y);
     }
