@@ -436,6 +436,8 @@ function stopOsc(note = 69) {
     delete osc[note];
 }
 
+let drawOscilloscope = true;
+
 // XXX remove this
 async function mainloop() {
     setTimeout(mainloop, 1/20);
@@ -447,7 +449,7 @@ async function mainloop() {
     const canvas = get("oscilloscope");
     if(canvas === null) return;
     const dots = 20;
-    {
+    if (drawOscilloscope) {
         let ctx = canvas.getContext("2d");
         //let ctx = new CanvasRenderingContext2D();
         const h = canvas.height * .95, hh = Math.floor(canvas.height / 2 * .95),
@@ -462,9 +464,9 @@ async function mainloop() {
         ctx.lineWidth = 2;
         ctx.strokeStyle = "yellow";
         ctx.beginPath();
-        ctx.moveTo(1, arr[1] * hh + hh);
+        ctx.moveTo(1, -arr[1] * hh + hh);
         for(let i = 1; i < w; i++)
-            ctx.lineTo(i, arr[Math.floor(arr.length * i / w)] * hh + hh);
+            ctx.lineTo(i, -arr[Math.floor(arr.length * i / w)] * hh + hh);
         ctx.stroke();
 
         /* TODO toggleable lines for high frequency signals
