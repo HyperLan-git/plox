@@ -62,8 +62,8 @@ const CONST_NODE_TYPE = [
 const CONST_EXTERNAL_PARAM = [
     "FREQUENCY",
     "NOTE",
-    //"PITCH_SHIFT",
-    //"VELOCITY"
+    "PITCH_SHIFT",
+    "VELOCITY"
 ];
 
 function deserializeEnvelope(json) {

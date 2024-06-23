@@ -136,6 +136,7 @@ function onMIDIMessage(event) {
     console.log(str);
 
     const nodes = fx.getAllNodes();
+    // MIDI CC
     if(event.data[0] == 0xB0) {
         if(midiCCbind != null) {
             get("constmidicc_" + midiCCbind).value = event.data[1];
@@ -149,14 +150,25 @@ function onMIDIMessage(event) {
         }
     }
 
-    //TODO handle vel
+    // Pitch bend
+    if((event.data[0] & 0xF0) == 0xE0) {
+        let value = (event.data[1] | (event.data[1] << 7) - 0x2000);
+        if(value > 0) value /= 0x1FFF;
+        else value /= 0x2000;
+        for(let k in nodes) {
+            if(nodes[k].fxtype == "constant" && nodes[k].node.type == "PITCH_BEND" && nodes[k].node.data == event.data[1]) {
+                nodes[k].setParam("offset", value);
+            }
+        }
+    }
+
     if((event.data[0] & 0xF0) == 0x90) {
         if(event.data[2] == 0)
-            stopOsc(event.data[1]);
+            stopNote(event.data[1]);
         else
-            playOsc(event.data[1]);
+            playNote(event.data[1], event.data[2]);
     } else if((event.data[0] & 0xF0) == 0x80) {
-        stopOsc(event.data[1]);
+        stopNote(event.data[1]);
     }
 }
 
@@ -202,7 +214,7 @@ function drawSynth() {
                 if(sharps.includes((note - 1) % 7) && pos.x % noteSize < noteSize *.25) n--;
                 else if(sharps.includes(note % 7) && pos.x % noteSize > noteSize * .75) n++;
             }
-            playOsc(get('octave').value * 12 + 12 + n);
+            playNote(get('octave').value * 12 + 12 + n);
             pressed = n;
         }
         down = true;
@@ -217,18 +229,18 @@ function drawSynth() {
             else if(sharps.includes(note % 7) && pos.x % noteSize > noteSize * .75) n++;
         }
         if(down && n != pressed) {
-            stopOsc(get('octave').value * 12 + 12 + pressed);
-            playOsc(get('octave').value * 12 + 12 + n);
+            stopNote(get('octave').value * 12 + 12 + pressed);
+            playNote(get('octave').value * 12 + 12 + n);
             pressed = n;
         }
     };
     canvas.onmouseleave = (e) => {
-        for(let k in osc) stopOsc(Number(k));
+        for(let k in osc) stopNote(Number(k));
         down = false;
     };
     canvas.onmouseup = (e) => {
         if (e.button == 0) {
-            for(let k in osc) stopOsc(Number(k));
+            for(let k in osc) stopNote(Number(k));
             down = false;
         }
     };
@@ -244,7 +256,7 @@ function drawSynth() {
                 if(sharps.includes((note - 1) % 7) && pos.x % noteSize < noteSize *.25) n--;
                 else if(sharps.includes(note % 7) && pos.x % noteSize > noteSize * .75) n++;
             }
-            playOsc(get('octave').value * 12 + 12 + n);
+            playNote(get('octave').value * 12 + 12 + n);
             touches[t.identifier] = get('octave').value * 12 + 12 + n;
         }
     };
@@ -261,8 +273,8 @@ function drawSynth() {
             }
             const val = get('octave').value * 12 + 12 + n;
             if(touches[t.identifier] != val) {
-                stopOsc(touches[t.identifier]);
-                playOsc(val);
+                stopNote(touches[t.identifier]);
+                playNote(val);
                 touches[t.identifier] = val;
             }
         }
@@ -270,7 +282,7 @@ function drawSynth() {
     canvas.ontouchend = (e) => {
         for(let touch = 0; touch < e.changedTouches.length; touch++) {
             const t = e.changedTouches.item(touch);
-            stopOsc(touches[t.identifier]);
+            stopNote(touches[t.identifier]);
             delete touches[t.identifier];
         }
     };
@@ -362,7 +374,7 @@ function getNoteFreq(midiPitch) {
     return result * Math.pow(SEMITONE_PITCH, midiPitch - 69) * 440;
 }
 
-function playOsc(note = 69) {
+function playNote(note = 69, vel = 90) {
     if(AC === null) return;
     if(osc[note] !== undefined) return;
 
@@ -379,10 +391,13 @@ function playOsc(note = 69) {
                 case "EXT_PARAM":
                     switch(nodes[k].node.data) {
                         case "FREQUENCY":
-                            nodes[k].node.offset.value = getNoteFreq(note);
+                            nodes[k].setParam("offset", getNoteFreq(note));
                             break;
                         case "NOTE":
-                            nodes[k].node.offset.value = note;
+                            nodes[k].setParam("offset", note);
+                            break;
+                        case "VELOCITY":
+                            nodes[k].setParam("offset", vel);
                             break;
                     }
                     break;
@@ -409,7 +424,7 @@ function playOsc(note = 69) {
     osc[note] = nodes;
 }
 
-function stopOsc(note = 69) {
+function stopNote(note = 69) {
     if(osc[note] === undefined) return;
     const nodes = osc[note];
     let maxEnv = 0;
@@ -551,12 +566,12 @@ window.onload = () => {
 
     window.addEventListener("keydown", function(e) {
         if(KEYS.indexOf(e.code) !== -1)
-            playOsc(KEY_START + KEYS.indexOf(e.code) + get("octave").value*12);
+            playNote(KEY_START + KEYS.indexOf(e.code) + get("octave").value*12);
     });
 
     window.addEventListener("keyup", function(e) {
         if(KEYS.indexOf(e.code) !== -1)
-            stopOsc(KEY_START + KEYS.indexOf(e.code) + get("octave").value*12);
+            stopNote(KEY_START + KEYS.indexOf(e.code) + get("octave").value*12);
     });
 
     mainloop();
