@@ -32,7 +32,8 @@ const PARAMS = {
     "audiobuffersource": ["detune", "playbackRate", "buffer", "loop", "loopStart", "loopEnd"],
     "streamsource": [],
     "streamdestination": [],
-    "constant": ["offset", "type", "data"]
+    "constant": ["offset", "type", "data"],
+    "worklet": ["code", "processorOptions"]
 };
 
 const MODULATIONS = {
@@ -48,7 +49,8 @@ const MODULATIONS = {
     "oscillator": ["frequency", "detune"],
     "audiobuffersource": ["detune", "playbackRate"],
     "streamsource": [],
-    "constant": ["offset"]
+    "constant": ["offset"],
+    "worklet": []
 };
 
 const CONST_NODE_TYPE = [
@@ -391,7 +393,20 @@ class FX extends EventTarget {
             node = new ChannelMergerNode(this.node.context, {numberOfInputs: this.node.numberOfInputs});
         else if(this.fxtype == "channelsplitter")
             node = new ChannelSplitterNode(this.node.context, {numberOfOutputs: this.node.numberOfOutputs});
-        else
+        else if(this.fxtype == "worklet") {
+            node = new AudioWorkletNode(
+                AC,
+                "programmable-processor",
+                {
+                    numberOfInputs: this.node.numberOfInputs,
+                    numberOfOutputs: this.node.numberOfOutputs,
+                    parameterData: undefined,
+                    processorOptions: {
+                        fct: this.node.code
+                    }
+                }
+            );
+        } else
             node = new FX_TYPES[this.fxtype](this.node.context);
 
         fx = new FX(node);
@@ -712,3 +727,30 @@ class FXGraph {
         return nodes;
     }
 };
+
+function createWorklet() {
+    if(AC == null) return;
+    const text = get("workletcode").innerText;
+    const opt = {
+        fct: text
+    };
+    const newfx = new AudioWorkletNode(
+        AC,
+        "programmable-processor",
+        {
+            numberOfInputs: Number(get("workletinputs").value),
+            numberOfOutputs: Number(get("workletoutputs").value),
+            parameterData: undefined,
+            processorOptions: opt
+        }
+    );
+    newfx.port.postMessage({type: "stop"});
+    newfx.port.onmessage = (e) => {
+        if(e.data.type == 'error')
+            get("workleterror").innerHTML = "Error caused by your code : " + e.data.data;
+    };
+    newfx.code = text;
+    newfx.processorOptions = opt;
+    fx.addNode(newfx);
+    updateModUI(fx.getAllNodes());
+}
