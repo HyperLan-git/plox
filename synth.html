@@ -3,6 +3,8 @@
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <!-- XXX for local testing <link rel="stylesheet" href="./node_modules/drawflow/dist/drawflow.min.css">
     <script src="./node_modules/drawflow/dist/drawflow.min.js"></script>-->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jerosoler/Drawflow/dist/drawflow.min.css">
@@ -78,6 +80,29 @@
         <th>Delete</th>
         <tbody id="modList"></tbody>
     </table>
+    <div>
+        <p>
+            Programmable node:<br>
+            Number of inputs: <input type="number" min="0" max="10" value="0" id="workletinputs"></input><br>
+            Number of outputs: <input type="number" min="1" max="10" value="1" id="workletoutputs"></input><br>
+            Params (TODO)<br>
+            <button onclick="createWorklet();">ADD</button><br>
+            <!-- TODO fix syntax coloring -->
+            Code: <pre><code class="language-js" id="workletcode" style="width:98.5%; height: 20em; resize: none;" contenteditable="true">// Your arguments here are "inputs", "outputs" and "parameters"
+const output = outputs[0];
+// For every channel
+for(let ch = 0; ch < output.length; ch++) {
+  let channel = output[ch];
+  // Fill the audio buffer
+  for (let sample = 0; sample < channel.length; sample++) {
+    // With random data (white noise)
+    channel[sample] = Math.random() * 2 - 1;
+  }
+}
+</code></pre>
+            <p style="color:black; background-color: red; padding:0%" id="workleterror"></p>
+        </p>
+    </div>
     <div>
         <p>
             <button id="midi" onclick="initMIDI(); this.disabled = true;">ENABLE MIDI INPUT</button><br>

@@ -1,5 +1,5 @@
-// TODO understand wtf is an audio worklet
 // FIXME turn everything into modules!!!
+
 let AC = new AudioContext();
 
 let masterFader = new GainNode(AC),
@@ -107,10 +107,12 @@ function initAudio() {
 
     adsr.connect(fx.getOutput());
     fx.connectGraphNode(adsr, fx.getOutput());
-    fx.getOutput().node.connect(masterFader);
+    //fx.getOutput().node.connect(masterFader);
     updateModUI(fx.getAllNodes());
 
     drawSynth();
+
+    AC.audioWorklet.addModule("scripts/worklet.js");
 }
 
 function initMIDI() {
@@ -438,6 +440,8 @@ function stopNote(note = 69) {
     }
     setTimeout(() => {
         for(let k in nodes) {
+            if(nodes[k].fxtype == "worklet")
+                nodes[k].node.port.postMessage({type: "stop"});
             nodes[k].disconnect();
         }
     }, maxEnv);
@@ -540,6 +544,12 @@ let fx = null;
 let drawflow = null;
 
 window.onload = () => {
+    hljs.highlightAll();
+    /*get("workletcode").addEventListener("input", () => {
+        delete get("workletcodedisplay").dataset.highlighted;
+        get("workletcodedisplay").innerText = get("workletcode").value;
+        hljs.highlightAll();
+    });*/
     AC = null;
 
     let id = document.getElementById("drawflow");

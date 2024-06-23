@@ -120,6 +120,7 @@ function distortionFunction(name, func, n) {
         let arr = new Float32Array(n);
         for(let i = 0; i < n; i++) {
             let x = i * 2 / n - 1;
+            //TODO use Function() instead of eval
             arr[i] = eval(func);
             if(arr[i] > 1) arr[i] = 1;
             if(arr[i] < -1) arr[i] = -1;
@@ -777,6 +778,12 @@ function updateBufferSource(name) {
     get("value_bufend_" + name).innerHTML = end;
 }
 
+function drawWorklet(name) {
+    return {
+        html: ""
+    };
+}
+
 const FX_DRAW = {
     "gain": drawGain,
     "delay": drawDelay,
@@ -788,5 +795,6 @@ const FX_DRAW = {
     "convolver": drawConvolver,
     "oscillator": drawOscillator,
     "constant": drawConstant,
-    "audiobuffersource": drawBufferSource
+    "audiobuffersource": drawBufferSource,
+    "worklet": drawWorklet
 };

@@ -89,6 +89,10 @@ ul {
     font-size: 24px;
 }
 
+code {
+    display: flex;
+}
+
 .sidebar {
     position: fixed;
     height: 100%;
