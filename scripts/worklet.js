@@ -22,9 +22,8 @@ class ProgrammableProcessor extends AudioWorkletProcessor {
         this.fct = new Function("inputs", "outputs", "parameters", "\"use strict\";" + options.processorOptions.fct);
         this.shouldStop = false;
         this.port.onmessage = (e) => {
-            if(e.data.type == 'stop') {
+            if(e.data.type == 'stop')
                 this.shouldStop = true;
-            }
         };
     }
 
