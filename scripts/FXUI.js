@@ -778,10 +778,38 @@ function updateBufferSource(name) {
     get("value_bufend_" + name).innerHTML = end;
 }
 
+const PROGRAMMABLEPARAMS = 16;
 function drawWorklet(name) {
+    const fx = getAudioNode(name);
+    let str = "";
+    for(let i = 0; i < PROGRAMMABLEPARAMS; i++) {
+        const id = i+1;
+        const val = fx.node.parameters.get('param_' + id).value;
+        str += "Param " + id + ": <input type='number' id='workletparam_" + id + "_" + name + "' value='" + val + "' onchange='updateWorkletParam(\"" + name + "\", " + id + ")'></input> " +
+            drawParamUI(val, 'workletparamrange_' + id + '_' + name, "", "updateWorkletParam('" + name + "', " + id + ", true)") + "<br>"
+    }
     return {
-        html: ""
+        html: str
     };
+}
+
+function updateWorkletParam(name, param, range = false) {
+    if(AC === null) return;
+
+    const fx = getAudioNode(name);
+    if(fx == null) return;
+
+    let val = null;
+    if(range) {
+        val = get("workletparamrange_" + param + "_" + name).value;
+        get("value_workletparamrange_" + param + "_" + name).innerHTML = val;
+        get("workletparam_" + param + "_" + name).value = val;
+    } else {
+        val = get("workletparam_" + param + "_" + name).value;
+        get("workletparamrange_" + param + "_" + name).value = val;
+        get("value_workletparamrange_" + param + "_" + name).innerHTML = val;
+    }
+    fx.setParam("param_" + param, val);
 }
 
 const FX_DRAW = {
