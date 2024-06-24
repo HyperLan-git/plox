@@ -487,7 +487,10 @@ function deserializeFX(AC, json, updateUILabels = true) {
     for(let k in json.params) {
         const val = json.params[k];
         if(val["audioParam"] === true) {
-            res.node[k].value = val.value;
+            if(json.type == "worklet")
+                res.node.parameters.get(k).value = val.value;
+            else
+                res.node[k].value = val.value;
         } else if(json.type == "constant" && k == "data" && json.params["type"]["value"] === "ENVELOPE") {
             res.node[k] = new Envelope(val.value.attack, val.value.decay, val.value.sustain, val.value.release);
         } else if(json.type == "distortion" && k == "curve") {
