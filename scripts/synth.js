@@ -385,6 +385,8 @@ function playNote(note = 69, vel = 90) {
     const time = AC.currentTime;
     for(let k in nodes) {
         if(nodes[k].fxtype == 'oscillator' || nodes[k].fxtype == 'audiobuffersource') nodes[k].node.start(time);
+        if(nodes[k].fxtype == "worklet")
+            nodes[k].node.port.postMessage({type: "start"});
         else if(nodes[k].fxtype == 'constant') {
             switch(nodes[k].node.type) {
                 case "CONSTANT":

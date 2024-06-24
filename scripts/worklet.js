@@ -14,6 +14,7 @@ class ProgrammableProcessor extends AudioWorkletProcessor {
     fct;
     processorOptions;
     shouldStop;
+    started;
 
     constructor(options) {
         super();
@@ -22,6 +23,8 @@ class ProgrammableProcessor extends AudioWorkletProcessor {
         this.fct = new Function("inputs", "outputs", "parameters", "\"use strict\";" + options.processorOptions.fct);
         this.shouldStop = false;
         this.port.onmessage = (e) => {
+            if(e.data.type == 'start')
+                this.started = true;
             if(e.data.type == 'stop')
                 this.shouldStop = true;
         };
@@ -29,6 +32,7 @@ class ProgrammableProcessor extends AudioWorkletProcessor {
 
     // I love how the docs won't even attempt to warn against the huge memory leak the example causes
     process(inputs, outputs, parameters) {
+        if(!this.started) return true;
         try {
             this.fct(inputs, outputs, parameters);
         } catch(e) {
