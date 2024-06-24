@@ -33,7 +33,8 @@
     <div>
         <p>
             <br><canvas id="spectrum" width="700" height="300"></canvas>
-            <br><canvas id="oscilloscope" width="700" height="300"></canvas> Draw? <input type="checkbox" onclick="drawOscilloscope=this.checked;" onchange="drawOscilloscope=this.checked;" id="drawosc" checked></input>
+            <br><canvas id="oscilloscope" width="700" height="300"></canvas>
+            Draw? <input type="checkbox" onclick="drawOscilloscope=this.checked;" onchange="drawOscilloscope=this.checked;" id="drawosc" checked></input>
         </p>
     </div>
     <div>
@@ -82,13 +83,11 @@
     </table>
     <div>
         <p>
-            Programmable node:<br>
+            Programmable node: <button onclick="createWorklet();">ADD</button><br>
             Number of inputs: <input type="number" min="0" max="10" value="0" id="workletinputs"></input><br>
             Number of outputs: <input type="number" min="1" max="10" value="1" id="workletoutputs"></input><br>
-            Params (TODO)<br>
-            <button onclick="createWorklet();">ADD</button><br>
             <!-- TODO fix syntax coloring -->
-            Code: <pre><code class="language-js" id="workletcode" style="width:98.5%; height: 20em; resize: none;" contenteditable="true">// Your arguments here are "inputs", "outputs" and "parameters"
+            <pre><code class="language-js" id="workletcode" style="width:98.5%; height: 20em; resize: none;" contenteditable="true">// Your arguments here are "inputs", "outputs" and "parameters"
 const output = outputs[0];
 // For every channel
 for(let ch = 0; ch < output.length; ch++) {

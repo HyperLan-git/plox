@@ -1,4 +1,16 @@
+const PROGRAMMABLEPARAMS = 16;
+
 class ProgrammableProcessor extends AudioWorkletProcessor {
+    static get parameterDescriptors() {
+        let p = [];
+        for(let i = 0; i < PROGRAMMABLEPARAMS; i++) {
+            p.push({
+                name: "param_" + String(i + 1)
+            });
+        }
+        return p;
+    }
+
     fct;
     processorOptions;
     shouldStop;
@@ -10,8 +22,9 @@ class ProgrammableProcessor extends AudioWorkletProcessor {
         this.fct = new Function("inputs", "outputs", "parameters", "\"use strict\";" + options.processorOptions.fct);
         this.shouldStop = false;
         this.port.onmessage = (e) => {
-            if(e.data.type == 'stop')
+            if(e.data.type == 'stop') {
                 this.shouldStop = true;
+            }
         };
     }
 

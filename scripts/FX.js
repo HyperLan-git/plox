@@ -33,7 +33,11 @@ const PARAMS = {
     "streamsource": [],
     "streamdestination": [],
     "constant": ["offset", "type", "data"],
-    "worklet": ["code", "processorOptions"]
+    "worklet": [
+        "code", "processorOptions",
+        "param_1", "param_2", "param_3", "param_4", "param_5", "param_6", "param_7", "param_8",
+        "param_9", "param_10", "param_11", "param_12", "param_13", "param_14", "param_15", "param_16"
+    ]
 };
 
 const MODULATIONS = {
@@ -50,7 +54,10 @@ const MODULATIONS = {
     "audiobuffersource": ["detune", "playbackRate"],
     "streamsource": [],
     "constant": ["offset"],
-    "worklet": []
+    "worklet": [
+        "param_1", "param_2", "param_3", "param_4", "param_5", "param_6", "param_7", "param_8",
+        "param_9", "param_10", "param_11", "param_12", "param_13", "param_14", "param_15", "param_16"
+    ]
 };
 
 const CONST_NODE_TYPE = [
@@ -219,10 +226,11 @@ class FX extends EventTarget {
     setParam(param, value, smooth = false) {
         let ev = new AudioParamChangeEvent(this, param, value, smooth);
         if (this.dispatchEvent(ev)) {
+            const p = (this.fxtype == 'worklet') ? this.node.parameters.get(param) : this.node[param];
             if (smooth)
-                this.node[param].setTargetAtTime(ev.newValue, this.node.context.currentTime, uiChange);
+                p.setTargetAtTime(ev.newValue, this.node.context.currentTime, uiChange);
             else
-                this.node[param].value = ev.newValue;
+                p.value = ev.newValue;
             return true;
         }
         return false;
@@ -259,7 +267,10 @@ class FX extends EventTarget {
         }
         this.outputParams.push({fx: fx, param: param, idx: output});
         fx.inputParams[this.name + param + output] = {fx: this, param: param, output: output};
-        this.node.connect(fx.node[param], output);
+        if(fx.fxtype == 'worklet')
+            this.node.connect(fx.node.parameters.get(param), output);
+        else
+            this.node.connect(fx.node[param], output);
         return true;
     }
 
@@ -267,6 +278,10 @@ class FX extends EventTarget {
         for(let k = 0; k < this.outputParams.length; k++) {
             const v = this.outputParams[k];
             if(v["fx"] == fx && v["param"] == param && v["idx"] == output) {
+                if(v.fx.fxtype == "worklet")
+                    this.node.disconnect(v.fx.node.parameters.get(v["param"]), v["idx"]);
+                else
+                    this.node.disconnect(v.fx.node[v["param"]], v["idx"]);
                 delete v.fx.inputParams[this.name + v["param"] + v["idx"]];
                 this.outputParams.splice(k, 1);
                 return;
@@ -418,6 +433,8 @@ class FX extends EventTarget {
         for(const v of PARAMS[this.fxtype])
             if(!MODULATIONS[this.fxtype].includes(v))
                 fx.node[v] = this.node[v];
+            else if(this.fxtype == "worklet")
+                fx.node.parameters.get(v).value = this.node.parameters.get(v).value;
             else
                 fx.node[v].value = this.node[v].value; // It is an audioparam
 
@@ -447,9 +464,12 @@ class FX extends EventTarget {
         for(let p of PARAMS[this.fxtype]) {
             if(p == "buffer")
                 params[p] = {audioParam: false, value: null};
-            else if(MODULATIONS[this.fxtype].includes(p))
-                params[p] = {audioParam: true, value: this.node[p].value};
-            else
+            else if(MODULATIONS[this.fxtype].includes(p)) {
+                if(this.fxtype == "worklet")
+                    params[p] = {audioParam: true, value: this.node.parameters.get(p).value};
+                else
+                    params[p] = {audioParam: true, value: this.node[p].value};
+            } else
                 params[p] = {audioParam: false, value: this.node[p]};
         }
         return {type: this.fxtype, label: this.label, params: params};
