@@ -641,6 +641,10 @@ class FXGraph {
         this.drawflow.addConnection(input.gid, output.gid, 'output_1', 'input_1');
     }
 
+    disconnectGraphNode(input, output) {
+        this.drawflow.removeSingleConnection(input.gid, output.gid, 'output_1', 'input_1');
+    }
+
     getOutput() {
         return this.outputNode;
     }

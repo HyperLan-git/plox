@@ -503,13 +503,12 @@ function drawAnalyserCanvas(name) {
     ctx.clearRect(0, h * .95, w, h);
 
     if(fx.node.type == 'fft') {
-        const HZ_SCALE = [5, 12, 32, 55, 90, 140, 210, 310, 440, 610, 900, 1250, 1700, 2400, 3400, 4800, 6700, 9500, 13500, 19000];
         ctx.lineWidth = 1;
         ctx.strokeStyle = "black";
         ctx.strokeText("Hz", ww, h - 12);
         for(let i = 0; i < 20; i++) {
             let x = i * w / 20 + 10;
-            ctx.strokeText("" + HZ_SCALE[i], x, h - 2);
+            ctx.strokeText("" + Math.round((logToLinear(x + 10, 1, w) - 1) / 2 * fx.node.context.sampleRate / w), x, h - 2);
         }
     } else {
         ctx.lineWidth = 1;
