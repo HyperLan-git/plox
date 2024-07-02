@@ -320,8 +320,30 @@ function openFx(name) {
         // XXX wtf
         if(drawn['canvas'] !== undefined) setTimeout(() => drawn['canvas'](), 1);
     }
-    get('fxEditor').innerHTML += '<br>';
+    let str = "Outputs : <div='open_outputs_" + name + "'><br>";
+    for(let k in openNode.outputs) {
+        if(fx.getAudioNode(openNode.outputs[k].fx.name) == undefined) continue;
+        const del = "deleteOutput(\"" + name + "\", " + openNode.outputs[k].idx + ");";
+        str += "<span id='output_" + name + "_" + openNode.outputs[k].idx + "'>" +
+                "To <span class='name_" + openNode.outputs[k].fx.name + "'>" + openNode.outputs[k].fx.label + "</span> " +
+                "<button onclick='" + del + "'>DISCONNECT</button></span><br>";
+    }
+    str += '</div>'
+    get('fxEditor').innerHTML += '<br>' + str + '<br>';
     // TODO open channels editor see https://developer.mozilla.org/docs/Web/API/AudioNode
+}
+
+function deleteOutput(name, idx) {
+    let node = fx.getAudioNode(name);
+    if(node === null) return;
+    for(let k in node.outputs) {
+        if(node.outputs[k].idx == idx) {
+            // Event handling does the rest
+            get('output_' + name + '_' + idx).remove();
+            fx.disconnectGraphNode(node, node.outputs[k].fx);
+            return;
+        }
+    }
 }
 
 function setNodeLabel(name, label) {
@@ -529,13 +551,12 @@ async function mainloop() {
             //y -= (x1 + x2) / w * h; // The higher frequencies' slope
             ctx.fillRect(x1, y, x2 - x1, h - y);
         }
-        const HZ_SCALE = [5, 12, 32, 55, 90, 140, 210, 310, 440, 610, 900, 1250, 1700, 2400, 3400, 4800, 6700, 9500, 13500, 19000];
         ctx.lineWidth = 1;
         ctx.strokeStyle = "black";
         ctx.strokeText("Hz", w / 2, spectrum.height-12);
         for(let i = 0; i < dots; i++) {
             let x = i * w / dots + 10;
-            ctx.strokeText("" + HZ_SCALE[i], x, spectrum.height-2);
+            ctx.strokeText("" + Math.round((logToLinear(x + 10, 1, w) - 1) / 2 * AC.sampleRate / w), x, spectrum.height-2);
         }
     }
 }
