@@ -132,9 +132,10 @@ function deserializeModulations(nodes, mods) {
     for(let k in modulations) {
         removeModulation(k);
     }
+    const vals = Object.values(nodes);
     for(let k in mods) {
         const m = mods[k];
-        const uid = addMod(nodes, nodes[m.in], nodes[m.out], m.param, m.label);
+        const uid = addMod(vals, nodes[m.in], nodes[m.out], m.param, m.label);
         modulations[uid].amount.node.gain.value = m.amount;
         if(m.amount > 1) {
             get("mod_max_" + uid).value = Math.ceil(m.amount);
@@ -146,5 +147,5 @@ function deserializeModulations(nodes, mods) {
         get("mod_amount_" + uid).value = m.amount;
         updateModAmount(uid);
     }
-    updateModUI(nodes);
+    updateModUI(vals);
 }

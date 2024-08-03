@@ -79,7 +79,8 @@ function drawDistortion(name) {
         '</select><br>' +
         'Arbitrary function (don\'t put code in here) f(x) -> <input type="text" id="distf_' + name + '" ' +
         'onchange="distortionFunction(\'' + name + '\', this.value, get(\'distfcount_' + name + '\').value);"></input> ' +
-        'Points : <input type="number" id="distfcount_' + name + '"></input>' +
+        'Points : <input type="number" id="distfcount_' + name + '" ' +
+        'onchange="distortionFunction(\'' + name + '\', get(\'distf_' + name + '\').value, this.value);"></input>' +
         'Oversampling : <select id="oversample_' + name + '" ' +
         'onchange="distortionChanged(\'' + name + '\');">' +
         '<option value="none">None</option>' +
@@ -117,6 +118,7 @@ function setDistortion(name, preset) {
 function distortionFunction(name, func, n) {
     const fx = getAudioNode(name);
     try {
+        if(n <= 0) n = 101;
         let arr = new Float32Array(n);
         for(let i = 0; i < n; i++) {
             let x = i * 2 / n - 1;

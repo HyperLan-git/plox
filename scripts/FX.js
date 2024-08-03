@@ -417,7 +417,7 @@ class FX extends EventTarget {
                     numberOfOutputs: this.node.numberOfOutputs,
                     parameterData: undefined,
                     processorOptions: {
-                        fct: this.node.code
+                        fct: this.node.processorOptions.fct
                     }
                 }
             );
@@ -472,6 +472,8 @@ class FX extends EventTarget {
             } else
                 params[p] = {audioParam: false, value: this.node[p]};
         }
+        if(this.fxtype == "worklet")
+            return {type: this.fxtype, label: this.label, params: params, inputs: this.node.numberOfInputs, outputs: this.node.numberOfOutputs};
         return {type: this.fxtype, label: this.label, params: params};
     }
 }
@@ -480,7 +482,21 @@ function deserializeFX(AC, json, updateUILabels = true) {
     let node = FX_TYPES[json.type];
     if(node === undefined) throw new Error("Invalid node type !");
 
-    node = new node(AC);
+    if(json.type == "worklet")
+        node = new AudioWorkletNode(
+            AC,
+            "programmable-processor",
+            {
+                numberOfInputs: json.inputs,
+                numberOfOutputs: json.outputs,
+                parameterData: undefined,
+                processorOptions: {
+                    fct: json.params.processorOptions.value.fct
+                }
+            }
+        );
+    else
+        node = new node(AC);
     const res = new FX(node, updateUILabels);
 
     res.label = json.label;
@@ -755,6 +771,7 @@ class FXGraph {
     }
 };
 
+//TODO fix code being stored twice in json
 function createWorklet() {
     if(AC == null) return;
     const text = get("workletcode").innerText;
@@ -776,7 +793,6 @@ function createWorklet() {
         if(e.data.type == 'error')
             get("workleterror").innerHTML = "Error caused by your code : " + e.data.data;
     };
-    newfx.code = text;
     newfx.processorOptions = opt;
     fx.addNode(newfx);
     updateModUI(fx.getAllNodes());
